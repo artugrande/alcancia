@@ -16,8 +16,8 @@ export function useRates() {
   return rates;
 }
 
-const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-pink-100";
-const btn = "rounded-full bg-pink-600 px-5 py-2.5 font-semibold text-white shadow hover:bg-pink-700 disabled:opacity-50";
+const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
+const btn = "rounded-full bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
 
 export function GoalCards({ initial, onConfirm }: { initial: GoalDraft[]; onConfirm: (g: GoalDraft[]) => void }) {
   const [goals, setGoals] = useState(initial);
@@ -78,7 +78,7 @@ export function BudgetForm({ suggested, onConfirm }: { suggested: string[]; onCo
             <input type="number" className="w-36 rounded-xl border border-gray-200 px-3 py-2" value={c.amount || ""} placeholder="0" onChange={(e) => setCosts((x) => x.map((y, j) => (j === i ? { ...y, amount: Number(e.target.value) } : y)))} />
           </div>
         ))}
-        <button className="text-sm text-pink-600" onClick={() => setCosts((x) => [...x, { name: "", amount: 0 }])}>+ agregar gasto</button>
+        <button className="text-sm text-emerald-600" onClick={() => setCosts((x) => [...x, { name: "", amount: 0 }])}>+ agregar gasto</button>
       </div>
       <div className="mt-4 flex items-center justify-between">
         <span className="text-sm text-gray-600">Te quedan libres: <b>{fmt(income - fixed)}</b></span>
@@ -88,7 +88,7 @@ export function BudgetForm({ suggested, onConfirm }: { suggested: string[]; onCo
   );
 }
 
-const COLORS = ["#e0457b", "#f59e0b", "#10b981", "#6366f1", "#06b6d4", "#a855f7"];
+const COLORS = ["#059669", "#84cc16", "#0d9488", "#f59e0b", "#0ea5e9", "#a3a3a3"];
 
 export function PlanCard({ note, goals, budget, onCreated }: { note: string; goals: GoalDraft[]; budget: Budget; onCreated: (a: Address[]) => void }) {
   const rates = useRates();
@@ -166,7 +166,7 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
                 <b>{(r.bps / 100).toFixed(1)}%</b>
               </div>
               <input
-                type="range" min={0} max={5000} step={50} value={r.bps} className="w-full accent-pink-600"
+                type="range" min={0} max={5000} step={50} value={r.bps} className="w-full accent-emerald-600"
                 onChange={(e) => setBps(plan.rows.map((x, j) => (j === i ? Number(e.target.value) : x.bps)))}
               />
               <p className="text-xs text-gray-500">
@@ -182,10 +182,10 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
       {plan.totalBps > 10000 && <p className="mt-3 text-sm text-red-600">La suma no puede pasar del 100%.</p>}
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button className={btn} disabled={!address || step === "approve" || step === "create" || step === "done" || plan.totalBps > 10000 || plan.totalBps === 0} onClick={create}>
-          {step === "approve" ? "1/2 Firmá el permiso…" : step === "create" ? "2/2 Creando alcancías…" : step === "done" ? "¡Listo! 🎉" : "🐷 Crear mis alcancías"}
+          {step === "approve" ? "1/2 Firmá el permiso…" : step === "create" ? "2/2 Creando alcancías…" : step === "done" ? "¡Listo! 🎉" : "💰 Crear mis alcancías"}
         </button>
         {tx.map((h) => (
-          <a key={h} href={explorer(h)} target="_blank" className="text-xs text-pink-600 underline">{h.slice(0, 10)}…</a>
+          <a key={h} href={explorer(h)} target="_blank" className="text-xs text-emerald-600 underline">{h.slice(0, 10)}…</a>
         ))}
       </div>
       {err && <p className="mt-2 text-sm text-red-600">{err}</p>}

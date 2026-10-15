@@ -10,6 +10,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { randomBytes } from "node:crypto";
 import { celo } from "viem/chains";
 import { withAttribution } from "@celo/attribution-tags";
 import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
@@ -177,7 +178,7 @@ export type SweepLog = {
   user: Address;
   income: string;
   sweepTx?: Hex;
-  fx?: { alcancia: Address; inWars: string; outBrl?: string; swapTx?: Hex; depositTx?: Hex; error?: string }[];
+  fx?: { alcancia: Address; inWars: string; outBrl?: string; legs?: Leg[]; swapTx?: Hex; depositTx?: Hex; error?: string }[];
   skipped?: string;
 };
 
@@ -278,34 +279,119 @@ const routerAbi = [
   },
 ] as const;
 
-// wARS → USD₮ → wBRL. No direct local-currency market exists on Celo yet, so USD₮ is a
-// technical bridge; the user never holds dollars.
-async function swapWarsToBrlAndDeposit(amountIn: bigint, alcancia: Address, rates: Rates) {
-  const me = account.address;
-  const allowance = await forno.readContract({ address: TOKENS.wARS, abi: erc20Abi, functionName: "allowance", args: [me, UNISWAP_SWAP_ROUTER_02] });
-  if (allowance < amountIn) {
-    const h = await agentWallet.writeContract({ address: TOKENS.wARS, abi: erc20Abi, functionName: "approve", args: [UNISWAP_SWAP_ROUTER_02, 2n ** 255n] });
-    await forno.waitForTransactionReceipt({ hash: h });
+// ---------------------------------------------------------------- FX: Textile RFQ (Uniswap fallback)
+
+const TEXTILE = "https://api.textilecredit.com/v2/rfq";
+
+type TextileQuote = {
+  rfqId: string;
+  claimToken: string;
+  status: string;
+  quote: { takerPays: string; buyAmount: string; reactor: Address; expiresAt: number | string };
+  transactions: { swap: { to: Address; data: Hex; value: string } };
+};
+
+async function textileProof() {
+  const nonce = `0x${randomBytes(32).toString("hex")}` as Hex;
+  const issuedAt = Date.now();
+  const signature = await account.signTypedData({
+    domain: { name: "Textile Taker Control", version: "1", chainId: 42220 },
+    types: {
+      TakerControl: [
+        { name: "taker", type: "address" },
+        { name: "chainId", type: "uint256" },
+        { name: "nonce", type: "bytes32" },
+        { name: "issuedAt", type: "uint256" },
+      ],
+    },
+    primaryType: "TakerControl",
+    message: { taker: account.address, chainId: 42220n, nonce, issuedAt: BigInt(issuedAt) },
+  });
+  return { nonce, issuedAt, signature };
+}
+
+async function textileRequest(sellToken: Address, buyToken: Address, sellAmount: bigint): Promise<TextileQuote> {
+  const body = { chainId: 42220, sellToken, buyToken, sellAmount: sellAmount.toString(), taker: account.address, takerProof: await textileProof() };
+  const r = await fetch(`${TEXTILE}/request`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(75_000),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(`textile ${r.status}: ${JSON.stringify(j).slice(0, 200)}`);
+  if (j.data?.status !== "quoted") throw new Error(`textile ${j.data?.status}: ${j.data?.reason ?? ""}`);
+  return j.data as TextileQuote;
+}
+
+async function balanceOf(token: Address) {
+  return forno.readContract({ address: token, abi: erc20Abi, functionName: "balanceOf", args: [account.address] });
+}
+
+async function ensureAllowance(token: Address, spender: Address, amount: bigint) {
+  const current = await forno.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [account.address, spender] });
+  if (current >= amount) return;
+  if (current > 0n) {
+    // USD₮-style tokens require resetting to zero first.
+    const z = await agentWallet.writeContract({ address: token, abi: erc20Abi, functionName: "approve", args: [spender, 0n] });
+    await forno.waitForTransactionReceipt({ hash: z });
   }
-  const expected = (Number(amountIn) / 1e18 / rates.arsPerBrl) * 0.97; // 3% slippage
-  const minOut = BigInt(Math.floor(expected * 1e6)) * 10n ** 12n;
-  const path = encodePacked(
-    ["address", "uint24", "address", "uint24", "address"],
-    [TOKENS.wARS, POOL_FEE, TOKENS.USDT, POOL_FEE, TOKENS.wBRL],
-  );
-  const before = await forno.readContract({ address: TOKENS.wBRL, abi: erc20Abi, functionName: "balanceOf", args: [me] });
-  const swapTx = await agentWallet.writeContract({
+  const h = await agentWallet.writeContract({ address: token, abi: erc20Abi, functionName: "approve", args: [spender, amount] });
+  await forno.waitForTransactionReceipt({ hash: h });
+}
+
+export type Leg = { venue: "textile" | "uniswap"; sell: Address; buy: Address; amountIn: string; amountOut: string; tx: Hex; rfqId?: string; textileError?: string };
+
+async function textileLeg(sell: Address, buy: Address, amountIn: bigint): Promise<Leg> {
+  const q = await textileRequest(sell, buy, amountIn);
+  await ensureAllowance(sell, q.quote.reactor, BigInt(q.quote.takerPays));
+  const exp = Number(q.quote.expiresAt);
+  if (Date.now() >= (exp < 1e12 ? exp * 1000 : exp)) throw new Error("textile quote expired");
+  const before = await balanceOf(buy);
+  const tx = await agentWallet.sendTransaction({ to: q.transactions.swap.to, data: q.transactions.swap.data, value: 0n });
+  const rc = await forno.waitForTransactionReceipt({ hash: tx });
+  if (rc.status !== "success") throw new Error("textile swap reverted");
+  fetch(`${TEXTILE}/${q.rfqId}/submit`, { method: "POST", headers: { "content-type": "application/json", "X-Rfq-Claim": q.claimToken }, body: JSON.stringify({ txHash: tx }) }).catch(() => {});
+  const out = (await balanceOf(buy)) - before;
+  return { venue: "textile", sell, buy, amountIn: amountIn.toString(), amountOut: out.toString(), tx, rfqId: q.rfqId };
+}
+
+async function uniswapLeg(sell: Address, buy: Address, amountIn: bigint, minOut: bigint): Promise<Leg> {
+  await ensureAllowance(sell, UNISWAP_SWAP_ROUTER_02, amountIn);
+  const path = encodePacked(["address", "uint24", "address"], [sell, POOL_FEE, buy]);
+  const before = await balanceOf(buy);
+  const tx = await agentWallet.writeContract({
     address: UNISWAP_SWAP_ROUTER_02,
     abi: routerAbi,
     functionName: "exactInput",
-    args: [{ path, recipient: me, amountIn, amountOutMinimum: minOut }],
+    args: [{ path, recipient: account.address, amountIn, amountOutMinimum: minOut }],
   });
-  await forno.waitForTransactionReceipt({ hash: swapTx });
-  const after = await forno.readContract({ address: TOKENS.wBRL, abi: erc20Abi, functionName: "balanceOf", args: [me] });
-  const out = after - before;
-  const ap = await agentWallet.writeContract({ address: TOKENS.wBRL, abi: erc20Abi, functionName: "approve", args: [alcancia, out] });
-  await forno.waitForTransactionReceipt({ hash: ap });
+  const rc = await forno.waitForTransactionReceipt({ hash: tx });
+  if (rc.status !== "success") throw new Error("uniswap swap reverted");
+  const out = (await balanceOf(buy)) - before;
+  return { venue: "uniswap", sell, buy, amountIn: amountIn.toString(), amountOut: out.toString(), tx };
+}
+
+async function leg(sell: Address, buy: Address, amountIn: bigint, minOut: bigint): Promise<Leg> {
+  try {
+    return await textileLeg(sell, buy, amountIn);
+  } catch (e) {
+    const l = await uniswapLeg(sell, buy, amountIn, minOut);
+    return { ...l, textileError: String(e).slice(0, 200) };
+  }
+}
+
+// wARS → USD₮ → wBRL. No direct local-currency market exists on Celo yet, so USD₮ is a
+// technical bridge between two legs; the user never holds dollars.
+async function swapWarsToBrlAndDeposit(amountIn: bigint, alcancia: Address, rates: Rates) {
+  const usdExpected = Number(amountIn) / 1e18 / rates.arsPerUsd;
+  const leg1 = await leg(TOKENS.wARS, TOKENS.USDT, amountIn, BigInt(Math.floor(usdExpected * 0.97 * 1e6)));
+  const usd = BigInt(leg1.amountOut);
+  const brlExpected = (Number(usd) / 1e6) * rates.brlPerUsd;
+  const leg2 = await leg(TOKENS.USDT, TOKENS.wBRL, usd, BigInt(Math.floor(brlExpected * 0.97 * 1e6)) * 10n ** 12n);
+  const out = BigInt(leg2.amountOut);
+  await ensureAllowance(TOKENS.wBRL, alcancia, out);
   const depositTx = await agentWallet.writeContract({ address: alcancia, abi: alcanciaAbi, functionName: "deposit", args: [out] });
   await forno.waitForTransactionReceipt({ hash: depositTx });
-  return { outBrl: out.toString(), swapTx, depositTx };
+  return { outBrl: out.toString(), legs: [leg1, leg2], swapTx: leg2.tx, depositTx };
 }

@@ -9,7 +9,7 @@ const HELLO: UIMessage[] = [
   {
     id: "hello",
     role: "assistant",
-    parts: [{ type: "text", text: "¡Hola! 🐷 Soy Alcancía. Vamos a armar tu plan de ahorro en pesos onchain. Para arrancar: ¿cuáles son tus metas este año?" }],
+    parts: [{ type: "text", text: "¡Hola! 💰 Soy Alcancía. Vamos a armar tu plan de ahorro en pesos onchain. Para arrancar: ¿cuáles son tus metas este año?" }],
   },
 ];
 
@@ -36,7 +36,7 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
                 const k = `${m.id}-${i}`;
                 if (part.type === "text")
                   return (
-                    <p key={k} className={m.role === "user" ? "rounded-2xl rounded-br-sm bg-pink-600 px-4 py-2 text-white" : "rounded-2xl rounded-bl-sm bg-white px-4 py-2 shadow-sm"}>
+                    <p key={k} className={m.role === "user" ? "rounded-2xl rounded-br-sm bg-emerald-600 px-4 py-2 text-white" : "rounded-2xl rounded-bl-sm bg-white px-4 py-2 shadow-sm"}>
                       {part.text}
                     </p>
                   );
@@ -96,7 +96,7 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
         <div ref={end} />
       </div>
       <form
-        className="flex gap-2 border-t border-pink-100 pt-3"
+        className="flex gap-2 border-t border-emerald-100 pt-3"
         onSubmit={(e) => {
           e.preventDefault();
           if (!input.trim() || busy) return;
@@ -105,12 +105,12 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
         }}
       >
         <input
-          className="flex-1 rounded-full border border-pink-200 bg-white px-4 py-3 outline-none focus:border-pink-500"
+          className="flex-1 rounded-full border border-emerald-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
           placeholder="Ej: quiero ir a Florianópolis en enero y hacer un Ironman"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
-        <button disabled={busy} className="rounded-full bg-pink-600 px-5 font-semibold text-white disabled:opacity-50">
+        <button disabled={busy} className="rounded-full bg-emerald-600 px-5 font-semibold text-white disabled:opacity-50">
           ➤
         </button>
       </form>

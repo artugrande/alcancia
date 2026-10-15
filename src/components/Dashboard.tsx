@@ -8,9 +8,9 @@ import { DATA_SUFFIX, FACTORY, TOKENS, TOKEN_SYMBOL, alcanciaAbi, erc20Abi, expl
 import { fmt } from "@/lib/plan";
 import { useRates } from "./ToolCards";
 
-const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-pink-100";
-const btn = "rounded-full bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-pink-700 disabled:opacity-50";
-const ghost = "rounded-full border border-pink-200 px-4 py-2 text-sm font-semibold text-pink-700 hover:bg-pink-50 disabled:opacity-50";
+const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
+const btn = "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
+const ghost = "rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50";
 const FIELDS = ["name", "token", "target", "deadline", "balance", "pendingWithdraw", "unlocked"] as const;
 
 type Info = {
@@ -106,7 +106,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className={`${card} bg-gradient-to-br from-pink-500 to-rose-500 text-white ring-0`}>
+      <div className={`${card} bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-0`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-sm opacity-80">Ahorrado en total</p>
@@ -120,7 +120,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href={address ? rampUrl(address) : "#"} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-pink-700">💸 Cargar wARS (Ripio)</a>
+          <a href={address ? rampUrl(address) : "#"} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">💸 Cargar wARS (Ripio)</a>
           <button onClick={runSync} disabled={sync.loading} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">
             {sync.loading ? "🤖 El agente está repartiendo…" : "🔄 Sincronizar"}
           </button>
@@ -165,13 +165,13 @@ function AlcanciaCard({ a, arsPerBrl, onRitual, onChange }: { a: Info; arsPerBrl
   }
 
   return (
-    <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-pink-100">
+    <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100">
       <div className="flex items-center justify-between">
         <p className="text-lg font-bold">{emoji} {rest.join(" ")}</p>
         <span className="text-xs text-gray-400">{(a.bps / 100).toFixed(1)}% de cada ingreso</span>
       </div>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-pink-100">
-        <div className="h-full rounded-full bg-gradient-to-r from-pink-500 to-amber-400 transition-all" style={{ width: `${pct}%` }} />
+      <div className="mt-3 h-3 overflow-hidden rounded-full bg-emerald-100">
+        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-400 transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-sm">
         <span><b>{fmt(bal, sym as "wARS")}</b> de {fmt(tgt, sym as "wARS")}</span>
@@ -271,7 +271,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
         )}
         {stage === "riddle" && r && (
           <>
-            <p className="mt-4 rounded-2xl bg-pink-50 p-3 text-sm">{r.reply}</p>
+            <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm">{r.reply}</p>
             <p className="mt-4 font-semibold">🧩 {r.question}</p>
             <input className="mt-2 w-full rounded-xl border px-3 py-2" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta" />
             <p className="mt-1 text-xs text-gray-400">Pista: {r.hint}</p>
@@ -296,7 +296,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
 type SyncResult = {
   head: number;
   receipt: { paid: boolean; via: string; tx?: string; amount?: string; error?: string };
-  logs: { user: string; income: string; sweepTx?: string; skipped?: string; fx?: { inWars: string; outBrl?: string; swapTx?: string; depositTx?: string; error?: string }[] }[];
+  logs: { user: string; income: string; sweepTx?: string; skipped?: string; fx?: { inWars: string; outBrl?: string; legs?: { venue: string; tx: string }[]; depositTx?: string; error?: string }[] }[];
 };
 
 function SyncCard({ r }: { r: SyncResult }) {
@@ -319,7 +319,9 @@ function SyncCard({ r }: { r: SyncResult }) {
       {mine?.fx?.map((f, i) => (
         <p key={i}>
           💱 {fmt(Number(formatUnits(BigInt(f.inWars), 18)))} → {f.outBrl ? fmt(Number(formatUnits(BigInt(f.outBrl), 18)), "BRL") : "…"}
-          {f.swapTx && <> · <a className="underline" href={explorer(f.swapTx)} target="_blank">swap</a></>}
+          {f.legs?.map((l, j) => (
+            <span key={j}> · <a className="underline" href={explorer(l.tx)} target="_blank">{l.venue === "textile" ? "Textile" : "Uniswap"} {j === 0 ? "ARS→USD₮" : "USD₮→BRL"}</a></span>
+          ))}
           {f.depositTx && <> · <a className="underline" href={explorer(f.depositTx)} target="_blank">depósito</a></>}
           {f.error && <span className="text-red-300"> · {f.error}</span>}
         </p>
