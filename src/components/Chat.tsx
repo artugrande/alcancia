@@ -5,22 +5,18 @@ import { useEffect, useRef, useState } from "react";
 import { GoalCards, BudgetForm, PlanCard } from "./ToolCards";
 import type { Budget, GoalDraft } from "@/lib/plan";
 import type { Local } from "@/lib/config";
-
-const HELLO: UIMessage[] = [
-  {
-    id: "hello",
-    role: "assistant",
-    parts: [{ type: "text", text: "¡Hola! 💰 Soy Alcancía. Vamos a armar tu plan de ahorro en tu moneda, onchain. Para arrancar: ¿cuáles son tus metas este año?" }],
-  },
-];
+import { useI18n } from "@/lib/i18n";
 
 export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }) {
+  const { t, lang } = useI18n();
   const homeRef = useRef(home);
   homeRef.current = home;
+  const [demo, setDemo] = useState(false);
+  const hello: UIMessage[] = [{ id: "hello", role: "assistant", parts: [{ type: "text", text: t.hello }] }];
   const { messages, sendMessage, addToolOutput, status } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat", body: () => ({ home: homeRef.current }) }),
+    transport: new DefaultChatTransport({ api: "/api/chat", body: () => ({ home: homeRef.current, lang }) }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    messages: HELLO,
+    messages: hello,
   });
   const [input, setInput] = useState("");
   const [goals, setGoals] = useState<GoalDraft[]>([]);
@@ -46,7 +42,7 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
                     </p>
                   );
                 if (part.type === "tool-showGoals") {
-                  if (part.state === "input-streaming") return <Skeleton key={k} label="Armando tus metas…" />;
+                  if (part.state === "input-streaming") return <Skeleton key={k} label={t.buildingGoals} />;
                   if (part.state === "input-available")
                     return (
                       <GoalCards
@@ -59,27 +55,29 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
                         }}
                       />
                     );
-                  if (part.state === "output-available") return <Done key={k} label={`${goals.length || "Tus"} metas confirmadas ✅`} />;
+                  if (part.state === "output-available") return <Done key={k} label={t.goalsConfirmed} />;
                 }
                 if (part.type === "tool-askBudget") {
-                  if (part.state === "input-streaming") return <Skeleton key={k} label="Preparando tu presupuesto…" />;
+                  if (part.state === "input-streaming") return <Skeleton key={k} label={t.buildingBudget} />;
                   if (part.state === "input-available")
                     return (
                       <BudgetForm
                         key={k}
                         suggested={(part.input as { suggestedCosts: string[] }).suggestedCosts}
                         home={home}
+                        demo={demo}
                         onConfirm={(b) => {
                           setBudget(b);
                           addToolOutput({ tool: "askBudget", toolCallId: part.toolCallId, output: b });
                         }}
                       />
                     );
-                  if (part.state === "output-available") return <Done key={k} label="Presupuesto cargado ✅" />;
+                  if (part.state === "output-available") return <Done key={k} label={t.budgetLoaded} />;
                 }
                 if (part.type === "tool-showPlan") {
-                  if (part.state === "input-streaming") return <Skeleton key={k} label="Calculando tu plan…" />;
-                  if (part.state === "input-available" && budget)
+                  if (part.state === "input-streaming") return <Skeleton key={k} label={t.buildingPlan} />;
+                  // Keep the card mounted after the output so the created alcancías stay on screen.
+                  if ((part.state === "input-available" || part.state === "output-available") && budget)
                     return (
                       <PlanCard
                         key={k}
@@ -88,20 +86,31 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
                         budget={budget}
                         onCreated={(addrs) => {
                           addToolOutput({ tool: "showPlan", toolCallId: part.toolCallId, output: { created: addrs } });
-                          setTimeout(onCreated, 2500);
                         }}
+                        onDone={onCreated}
                       />
                     );
-                  if (part.state === "output-available") return <Done key={k} label="¡Alcancías creadas onchain! 🎉" />;
+                  if (part.state === "output-available") return <Done key={k} label={t.created} />;
                 }
                 return null;
               })}
             </div>
           </div>
         ))}
-        {status === "submitted" && <Skeleton label="Pensando…" />}
+        {status === "submitted" && <Skeleton label={t.thinking} />}
         <div ref={end} />
       </div>
+      {messages.length === 1 && !busy && (
+        <button
+          className="mb-2 self-start rounded-full bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900 hover:bg-amber-200"
+          onClick={() => {
+            setDemo(true);
+            sendMessage({ text: t.demoMsg });
+          }}
+        >
+          {t.demoBtn}
+        </button>
+      )}
       <form
         className="flex gap-2 border-t border-emerald-100 pt-3"
         onSubmit={(e) => {
@@ -113,7 +122,7 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
       >
         <input
           className="flex-1 rounded-full border border-emerald-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
-          placeholder="Ej: viajar a Florianópolis en enero, un Ironman, cambiar la notebook"
+          placeholder={t.placeholder}
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />

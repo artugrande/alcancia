@@ -8,6 +8,7 @@ import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, TOKEN_SYMBOL, alcanciaAbi, e
 import { convert, type Rates } from "@/lib/rates";
 import { fmt } from "@/lib/plan";
 import { useRates } from "./ToolCards";
+import { useI18n } from "@/lib/i18n";
 
 const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
 const btn = "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
@@ -70,6 +71,7 @@ export function useHome(user?: Address, rates?: Rates | null) {
 }
 
 export function Dashboard({ onAdd }: { onAdd: () => void }) {
+  const { t } = useI18n();
   const { address } = useAccount();
   const { items, refetch } = useAlcancias(address);
   const rates = useRates();
@@ -111,7 +113,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
   }, 0);
   const ramp = address ? rampUrl(address, home) : null;
   const avg = items.length ? items.reduce((s, a) => s + (a.target ? Number((a.balance * 10000n) / a.target) / 100 : 0), 0) / items.length : 0;
-  const level = avg >= 75 ? "🏆 Leyenda del ahorro" : avg >= 50 ? "🥇 Ahorrista pro" : avg >= 25 ? "🥈 En racha" : avg > 0 ? "🥉 Arrancando" : "🐣 Recién nacido";
+  const level = t.levels[avg >= 75 ? 4 : avg >= 50 ? 3 : avg >= 25 ? 2 : avg > 0 ? 1 : 0];
 
   async function runSync() {
     setSync({ loading: true });
@@ -132,25 +134,26 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
       <div className={`${card} bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-0`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-sm opacity-80">Ahorrado en total</p>
+            <p className="text-sm opacity-80">{t.totalSaved}</p>
             <p className="text-3xl font-black">{fmt(totalSaved, home)}</p>
             <p className="mt-1 text-sm">{level}</p>
           </div>
           <div className="text-right text-sm">
-            <p className="opacity-80">En tu wallet</p>
+            <p className="opacity-80">{t.inWallet}</p>
             <p className="font-bold">{LOCALS[home].flag} {fmt(Number(formatUnits(warsBalance, 18)), LOCALS[home].symbol)}</p>
-            <p className="text-xs opacity-80">permiso al agente: {fmt(Number(formatUnits(allowance, 18)), LOCALS[home].symbol)}</p>
+            <p className="text-xs opacity-80">{t.allowance} {fmt(Number(formatUnits(allowance, 18)), LOCALS[home].symbol)}</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {ramp && <a href={ramp} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">💸 Cargar {LOCALS[home].symbol} con Ripio</a>}
+          {ramp && <a href={ramp} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">{t.loadWith(LOCALS[home].symbol)}</a>}
           <button onClick={runSync} disabled={sync.loading} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">
-            {sync.loading ? "🤖 El agente está repartiendo…" : "🔄 Sincronizar"}
+            {sync.loading ? t.syncing : t.sync}
           </button>
-          <button onClick={onAdd} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">＋ Nueva meta</button>
+          <button onClick={onAdd} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">{t.newGoal}</button>
         </div>
       </div>
 
+      {address && <p className="rounded-2xl bg-white/70 p-3 text-xs text-gray-600 ring-1 ring-emerald-100">{t.walletInfo(`${address.slice(0, 6)}…${address.slice(-4)}`)}</p>}
       {sync.result && <SyncCard r={sync.result} />}
       {sync.error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{sync.error}</p>}
 
@@ -165,6 +168,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
 }
 
 function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: Local; rates: Rates | null; onRitual: () => void; onChange: () => void }) {
+  const { t, lang } = useI18n();
   const cur = localOf(a.token);
   const [withdrew, setWithdrew] = useState<number | null>(null);
   const config = useConfig();
@@ -193,40 +197,40 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
     <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100">
       <div className="flex items-center justify-between">
         <p className="text-lg font-bold">{emoji} {rest.join(" ")}</p>
-        <span className="text-xs text-gray-400">{(a.bps / 100).toFixed(1)}% de cada ingreso</span>
+        <span className="text-xs text-gray-400">{(a.bps / 100).toFixed(1)}% {t.ofIncome}</span>
       </div>
       <div className="mt-3 h-3 overflow-hidden rounded-full bg-emerald-100">
         <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-400 transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-sm">
-        <span><b>{fmt(bal, sym)}</b> de {fmt(tgt, sym)}</span>
+        <span><b>{fmt(bal, sym)}</b> {t.of} {fmt(tgt, sym)}</span>
         <span className="text-gray-500">{pct.toFixed(0)}%</span>
       </div>
-      {cur !== home && rates && <p className="text-xs text-emerald-700">{LOCALS[cur].flag} ≈ {fmt(convert(bal, cur, home, rates), home)} · ahorrás en la moneda en la que vas a gastar</p>}
+      {cur !== home && rates && <p className="text-xs text-emerald-700">{LOCALS[cur].flag} ≈ {fmt(convert(bal, cur, home, rates), home)} · {t.approxSaving}</p>}
       <p className="mt-1 text-xs text-gray-400">
-        Hasta {new Date(Number(a.deadline) * 1000).toLocaleDateString("es-AR", { month: "long", year: "numeric" })} ·{" "}
+        {t.until} {new Date(Number(a.deadline) * 1000).toLocaleDateString(lang === "en" ? "en-US" : "es-AR", { month: "long", year: "numeric" })} ·{" "}
         <a className="underline" href={explorer(a.address)} target="_blank">{a.address.slice(0, 8)}…</a>
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {a.unlocked ? (
-          <button className={btn} disabled={busy || a.balance === 0n} onClick={() => send("withdraw", [a.balance]).then(() => setWithdrew(bal))}>🎉 Retirar</button>
+          <button className={btn} disabled={busy || a.balance === 0n} onClick={() => send("withdraw", [a.balance]).then(() => setWithdrew(bal))}>{t.withdraw}</button>
         ) : pendingAmount > 0n ? (
           canExecute ? (
-            <button className={btn} disabled={busy} onClick={() => send("executeEarlyWithdraw").then(() => setWithdrew(Number(formatUnits(pendingAmount, 18))))}>Sacar {fmt(Number(formatUnits(pendingAmount, 18)), sym)}</button>
+            <button className={btn} disabled={busy} onClick={() => send("executeEarlyWithdraw").then(() => setWithdrew(Number(formatUnits(pendingAmount, 18))))}>{t.takeOut} {fmt(Number(formatUnits(pendingAmount, 18)), sym)}</button>
           ) : (
             <>
-              <span className="self-center text-xs text-gray-500">⏳ Se libera el {new Date(unlockAt).toLocaleString("es-AR")}</span>
-              <button className={ghost} onClick={onRitual}>🧩 Acertijo</button>
-              <button className={ghost} disabled={busy} onClick={() => send("cancelEarlyWithdraw")}>Me arrepentí 💪</button>
+              <span className="self-center text-xs text-gray-500">{t.unlocksAt} {new Date(unlockAt).toLocaleString(lang === "en" ? "en-US" : "es-AR")}</span>
+              <button className={ghost} onClick={onRitual}>{t.riddle}</button>
+              <button className={ghost} disabled={busy} onClick={() => send("cancelEarlyWithdraw")}>{t.regret}</button>
             </>
           )
         ) : (
-          <button className={ghost} disabled={a.balance === 0n} onClick={onRitual}>🔨 Romper la alcancía</button>
+          <button className={ghost} disabled={a.balance === 0n} onClick={onRitual}>{t.breakIt}</button>
         )}
       </div>
       {withdrew !== null && offrampUrl(cur, withdrew) && (
         <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
-          🏦 Ya está en tu wallet. ¿Lo pasás a tu cuenta bancaria? Retirá con Ripio →
+          {t.offramp}
         </a>
       )}
     </div>
@@ -234,6 +238,7 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
 }
 
 function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
+  const { t, lang } = useI18n();
   const config = useConfig();
   const sym = TOKEN_SYMBOL[a.token.toLowerCase()] ?? "wARS";
   const bal = Number(formatUnits(a.balance, 18));
@@ -259,7 +264,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
       }
       const res = await fetch("/api/unlock", {
         method: "POST",
-        body: JSON.stringify({ action: "start", alcancia: a.address, reason, context: `Quiere sacar ${amount} ${sym} de ${bal} ahorrados; meta ${tgt} ${sym}.` }),
+        body: JSON.stringify({ action: "start", lang, alcancia: a.address, reason, context: `Quiere sacar ${amount} ${sym} de ${bal} ahorrados; meta ${tgt} ${sym}.` }),
       }).then((x) => x.json());
       setR(res);
       setStage("riddle");
@@ -273,7 +278,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
   async function check() {
     if (!r) return;
     setBusy(true);
-    const res = await fetch("/api/unlock", { method: "POST", body: JSON.stringify({ action: "answer", alcancia: a.address, token: r.token, answer }) }).then((x) => x.json());
+    const res = await fetch("/api/unlock", { method: "POST", body: JSON.stringify({ action: "answer", lang, alcancia: a.address, token: r.token, answer }) }).then((x) => x.json());
     setBusy(false);
     setMsg(res.comment || res.error || "");
     if (res.correct && res.tx) setStage("approved");
@@ -282,20 +287,20 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center" onClick={onClose}>
       <div className="w-full max-w-md rounded-3xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <p className="text-xl font-black">🔨 Romper “{a.name}”</p>
+        <p className="text-xl font-black">{t.breakTitle(a.name)}</p>
         {stage === "reflect" && (
           <>
-            <label className="mt-4 block text-sm text-gray-600">¿Cuánto querés sacar? ({sym})</label>
+            <label className="mt-4 block text-sm text-gray-600">{t.howMuch(sym)}</label>
             <input type="number" disabled={hasPending} className="mt-1 w-full rounded-xl border px-3 py-2 text-lg font-bold" value={amount} onChange={(e) => setAmount(Number(e.target.value))} />
             <div className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900">
-              🤔 Es el <b>{share}%</b> de lo que juntaste y te hace retroceder <b>{back}%</b> de tu meta. ¿Lo vale?
+              {t.reflect(share, back)}
             </div>
-            <label className="mt-4 block text-sm text-gray-600">Contame por qué lo necesitás</label>
-            <textarea className="mt-1 w-full rounded-xl border px-3 py-2" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Sé honesto/a, nadie te juzga… salvo yo 😏" />
-            <p className="mt-2 text-xs text-gray-500">Si no resolvés el acertijo, igual podés sacarla en 72 h. Tu plata nunca queda trabada.</p>
+            <label className="mt-4 block text-sm text-gray-600">{t.why}</label>
+            <textarea className="mt-1 w-full rounded-xl border px-3 py-2" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t.whyPh} />
+            <p className="mt-2 text-xs text-gray-500">{t.neverLocked}</p>
             <div className="mt-4 flex gap-2">
-              <button className={btn} disabled={busy || reason.trim().length < 5 || amount <= 0 || amount > bal} onClick={start}>{busy ? "…" : hasPending ? "Ir al acertijo" : "Pedir retiro y seguir"}</button>
-              <button className={ghost} onClick={onClose}>Mejor no 💪</button>
+              <button className={btn} disabled={busy || reason.trim().length < 5 || amount <= 0 || amount > bal} onClick={start}>{busy ? "…" : hasPending ? t.toRiddle : t.requestAndGo}</button>
+              <button className={ghost} onClick={onClose}>{t.betterNot}</button>
             </div>
           </>
         )}
@@ -303,18 +308,18 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
           <>
             <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm">{r.reply}</p>
             <p className="mt-4 font-semibold">🧩 {r.question}</p>
-            <input className="mt-2 w-full rounded-xl border px-3 py-2" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder="Tu respuesta" />
-            <p className="mt-1 text-xs text-gray-400">Pista: {r.hint}</p>
+            <input className="mt-2 w-full rounded-xl border px-3 py-2" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={t.answerPh} />
+            <p className="mt-1 text-xs text-gray-400">{t.hint} {r.hint}</p>
             <div className="mt-4 flex gap-2">
-              <button className={btn} disabled={busy || !answer} onClick={check}>{busy ? "El agente está pensando…" : "Responder"}</button>
-              <button className={ghost} onClick={onClose}>Espero las 72 h</button>
+              <button className={btn} disabled={busy || !answer} onClick={check}>{busy ? t.agentThinking : t.answer}</button>
+              <button className={ghost} onClick={onClose}>{t.wait72}</button>
             </div>
           </>
         )}
         {stage === "approved" && (
           <>
-            <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">✅ ¡Correcto! El agente aprobó tu retiro onchain. Ya podés sacarlo desde la tarjeta.</p>
-            <button className={`${btn} mt-4`} onClick={onClose}>Volver</button>
+            <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">{t.approved}</p>
+            <button className={`${btn} mt-4`} onClick={onClose}>{t.back}</button>
           </>
         )}
         {msg && <p className="mt-3 text-sm text-gray-600">{msg}</p>}
@@ -339,19 +344,20 @@ type SyncResult = {
 const sym = (t: string) => TOKEN_SYMBOL[t.toLowerCase()] ?? "USD₮";
 
 function SyncCard({ r }: { r: SyncResult }) {
+  const { t } = useI18n();
   const mine = r.logs[0];
   return (
     <div className="rounded-3xl bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-100">
-      <p>🤖 agente · bloque #{r.head} · ingresos detectados con SQD vía buy (gratis)</p>
+      <p>{t.syncHead(r.head)}</p>
       <p>
-        📡 estado leído {r.receipt.via === "chainstack" ? `con Chainstack vía buy · pagó ${r.receipt.amount} por x402` : "con Forno (fallback)"}
-        {r.receipt.tx && <> · <a className="underline" href={explorer(r.receipt.tx)} target="_blank">recibo</a></>}
+        {r.receipt.via === "chainstack" ? t.syncPaid(r.receipt.amount ?? "") : t.syncForno}
+        {r.receipt.tx && <> · <a className="underline" href={explorer(r.receipt.tx)} target="_blank">{t.receipt}</a></>}
       </p>
-      {!mine && <p>sin alcancías para repartir</p>}
+      {!mine && <p>{t.noAlcancias}</p>}
       {mine?.skipped && <p>⏸ {mine.skipped}</p>}
       {mine?.sweepTx && (
         <p>
-          ✅ ingreso de {fmt(Number(formatUnits(BigInt(mine.income), 18)), mine.incomeToken)} repartido ·{" "}
+          {t.swept(fmt(Number(formatUnits(BigInt(mine.income), 18)), mine.incomeToken))} ·{" "}
           <a className="underline" href={explorer(mine.sweepTx)} target="_blank">tx</a>
         </p>
       )}
@@ -361,8 +367,8 @@ function SyncCard({ r }: { r: SyncResult }) {
           {f.legs?.map((l, j) => (
             <span key={j}> · <a className="underline" href={explorer(l.tx)} target="_blank">{l.venue === "textile" ? "Textile" : "Uniswap"} {sym(l.sell)}→{sym(l.buy)}</a></span>
           ))}
-          {f.depositTx && <> · <a className="underline" href={explorer(f.depositTx)} target="_blank">depósito</a></>}
-          {f.refundTx && <> · <a className="underline" href={explorer(f.refundTx)} target="_blank">devuelto a tu wallet</a></>}
+          {f.depositTx && <> · <a className="underline" href={explorer(f.depositTx)} target="_blank">{t.deposit}</a></>}
+          {f.refundTx && <> · <a className="underline" href={explorer(f.refundTx)} target="_blank">{t.refunded}</a></>}
           {f.error && <span className="text-amber-300"> · {f.error}</span>}
         </p>
       ))}

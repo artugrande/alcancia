@@ -4,6 +4,7 @@ import { RainbowKitProvider, connectorsForWallets, lightTheme } from "@rainbow-m
 import { injectedWallet, metaMaskWallet, rabbyWallet, valoraWallet } from "@rainbow-me/rainbowkit/wallets";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WagmiProvider, createConfig, http } from "wagmi";
+import { LangProvider, useI18n } from "@/lib/i18n";
 import { celo } from "wagmi/chains";
 
 const connectors = connectorsForWallets(
@@ -24,10 +25,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={lightTheme({ accentColor: "#059669", borderRadius: "large" })} locale="es-419">
-          {children}
-        </RainbowKitProvider>
+        <LangProvider>
+          <Rainbow>{children}</Rainbow>
+        </LangProvider>
       </QueryClientProvider>
     </WagmiProvider>
+  );
+}
+
+function Rainbow({ children }: { children: React.ReactNode }) {
+  const { lang } = useI18n();
+  return (
+    <RainbowKitProvider key={lang} theme={lightTheme({ accentColor: "#059669", borderRadius: "large" })} locale={lang === "en" ? "en-US" : "es-419"}>
+      {children}
+    </RainbowKitProvider>
   );
 }

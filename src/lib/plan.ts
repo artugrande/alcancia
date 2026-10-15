@@ -75,7 +75,8 @@ export function buildPlan(goals: GoalDraft[], budget: Budget, rates: Rates, over
     };
   });
   let total = rows.reduce((s, r) => s + r.bps, 0);
-  const cap = Math.floor(freePct * 10000);
+  // When goals don't fit, keep 20% of the free money for living: savings shouldn't eat it all.
+  const cap = Math.floor(freePct * 0.8 * 10000);
   let scaled = false;
   if (!overrides && total > cap) {
     const f = cap / total;

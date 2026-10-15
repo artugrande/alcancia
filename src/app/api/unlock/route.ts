@@ -24,11 +24,12 @@ function open<T>(token: string): T {
 }
 
 type Body =
-  | { action: "start"; alcancia: Address; reason: string; context: string }
-  | { action: "answer"; alcancia: Address; token: string; answer: string };
+  | { action: "start"; lang?: string; alcancia: Address; reason: string; context: string }
+  | { action: "answer"; lang?: string; alcancia: Address; token: string; answer: string };
 
 export async function POST(req: Request) {
   const body = (await req.json()) as Body;
+  const language = body.lang === "en" ? "Write everything in English." : "Escribí todo en español rioplatense.";
 
   if (body.action === "start") {
     const name = (await forno.readContract({ address: body.alcancia, abi: alcanciaAbi, functionName: "name" })) as string;
@@ -36,13 +37,13 @@ export async function POST(req: Request) {
       model: MODEL,
       output: Output.object({
         schema: z.object({
-          reply: z.string().describe("Respuesta corta (2-3 frases), cálida y con humor, en español rioplatense, a la razón que dio la persona. Si suena a impulso, decíselo con cariño."),
+          reply: z.string().describe("Respuesta corta (2-3 frases), cálida y con humor, en el idioma pedido, a la razón que dio la persona. Si suena a impulso, decíselo con cariño."),
           question: z.string().describe("Un acertijo o pregunta de trivia corta relacionada con la meta, con una única respuesta clara de 1-3 palabras o un número."),
           answer: z.string().describe("La respuesta correcta, corta."),
           hint: z.string().describe("Una pista breve."),
         }),
       }),
-      prompt: `La persona quiere romper antes de tiempo su alcancía "${name}".\nContexto: ${body.context}\nSu razón: "${body.reason}"\nGenerá la respuesta y un acertijo sobre "${name}".`,
+      prompt: `${language}\nLa persona quiere romper antes de tiempo su alcancía "${name}".\nContexto: ${body.context}\nSu razón: "${body.reason}"\nGenerá la respuesta y un acertijo sobre "${name}".`,
     });
     const token = seal({ alcancia: body.alcancia.toLowerCase(), answer: output.answer, exp: Date.now() + 15 * 60_000, tries: 0 });
     return Response.json({ reply: output.reply, question: output.question, hint: output.hint, token });
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
     const { output } = await generateText({
       model: MODEL,
       output: Output.object({ schema: z.object({ correct: z.boolean(), comment: z.string() }) }),
-      prompt: `Respuesta esperada: "${t.answer}". Respuesta de la persona: "${body.answer}". ¿Es correcta (aceptá sinónimos, acentos, mayúsculas y números escritos distinto)? comment: una frase corta en rioplatense.`,
+      prompt: `Respuesta esperada: "${t.answer}". Respuesta de la persona: "${body.answer}". ¿Es correcta (aceptá sinónimos, acentos, mayúsculas y números escritos distinto)? comment: una frase corta. ${language}`,
     });
     if (!output.correct) return Response.json({ correct: false, comment: output.comment });
 

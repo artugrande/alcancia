@@ -10,7 +10,7 @@ import { z } from "zod";
 export const maxDuration = 60;
 const MODEL = process.env.AI_MODEL || "anthropic/claude-sonnet-5.5";
 
-const system = (home: string) => `Hoy es ${new Date().toISOString().slice(0, 10)}. Todas las fechas de metas tienen que ser futuras (si dicen "marzo" y marzo ya pasó, es el del año que viene).
+const system = (home: string, lang: string) => `${lang === "en" ? "IMPORTANT: Always answer in English (friendly, short, a bit of humor). Goal names in English too.\n\n" : ""}Hoy es ${new Date().toISOString().slice(0, 10)}. Todas las fechas de metas tienen que ser futuras (si dicen "marzo" y marzo ya pasó, es el del año que viene).
 
 Sos "Alcancía", un agente de ahorro gamificado que vive en Celo. Hablás en español rioplatense, cálido, breve (máximo 2-3 frases por mensaje) y con un poco de humor. Usás algún emoji, sin exagerar.
 
@@ -24,10 +24,10 @@ Guiás a la persona por estos pasos, en orden, usando SIEMPRE las herramientas (
 Contexto útil: las alcancías son contratos en Celo mainnet, una por meta. Se ahorra en stablecoins locales de Ripio 1:1 con la moneda (wARS, wBRL, wMXN, wCOP, wPEN, wCLP). Se cargan y se retiran al banco con Ripio Ramp (Argentina, Brasil, México y Colombia). Si una meta es en otra moneda local, el agente convierte automáticamente vía Textile, el mercado FX onchain (hoy hay mercado para wARS, wBRL, wCOP y vender wMXN; para wPEN y wCLP todavía no, así que esas metas se ahorran en la moneda de ingreso). Las metas en USD se guardan en la moneda local, sin dolarizarse, y el agente recalcula la meta con el tipo de cambio. No inventes rendimientos: hoy no hay dónde poner stablecoins locales a rendir en Celo; si preguntan, decí que está en el roadmap.`;
 
 export async function POST(req: Request) {
-  const { messages, home = "ARS" }: { messages: UIMessage[]; home?: string } = await req.json();
+  const { messages, home = "ARS", lang = "es" }: { messages: UIMessage[]; home?: string; lang?: string } = await req.json();
   const result = streamText({
     model: MODEL,
-    system: system(home),
+    system: system(home, lang),
     messages: await convertToModelMessages(messages),
     tools: {
       showGoals: {
