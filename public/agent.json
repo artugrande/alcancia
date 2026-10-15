@@ -1,0 +1,20 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Alcancía",
+  "description": "Agente de ahorro en stablecoins locales (wARS, wBRL de Ripio) en Celo. Arma tu plan conversando, reparte cada ingreso en alcancías onchain (una por meta), convierte a la moneda del viaje vía Textile y te frena los impulsos con un ritual antes de romper una alcancía. Paga su infraestructura (Chainstack, SQD) vía buy con x402.",
+  "image": "https://alcancia-celo.vercel.app/icon.svg",
+  "services": [
+    { "name": "web", "endpoint": "https://alcancia-celo.vercel.app" },
+    { "name": "agentWallet", "endpoint": "eip155:42220:0xD8c9558DB1404976fB11A1fC64f3E122309B3055" }
+  ],
+  "registrations": [
+    { "agentId": 9911, "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432" }
+  ],
+  "supportedTrust": ["reputation"],
+  "x-contracts": {
+    "AlcanciaFactory": "eip155:42220:0x054f5f0a422bc10d38fbd8f360496215a39458df",
+    "AlcanciaImplementation": "eip155:42220:0xa043b2f74f2de79857e42fae8029292c87f89a2d"
+  },
+  "x-attribution": "celo_595aac690f07",
+  "x-source": "https://github.com/artugrande/alcancia"
+}

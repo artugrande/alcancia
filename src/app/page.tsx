@@ -42,7 +42,7 @@ export default function Home() {
       {isConnected && !loading && !showChat && <Dashboard onAdd={() => setChat(true)} />}
 
       <footer className="mt-auto pt-6 text-center text-xs text-gray-400">
-        Agente <a className="underline" href={explorer(AGENT ?? "")} target="_blank">{AGENT?.slice(0, 8)}…</a> · ERC-8004 · built for Agents on Open Rails
+        Agente <a className="underline" href={explorer(AGENT ?? "")} target="_blank">{AGENT?.slice(0, 8)}…</a> · <a className="underline" href="https://8004scan.io/agents/celo/9911" target="_blank">ERC-8004 #9911</a> · built for Agents on Open Rails
       </footer>
     </main>
   );
