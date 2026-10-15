@@ -4,9 +4,9 @@ import { useAccount, useConfig } from "wagmi";
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { decodeEventLog, parseUnits, type Address } from "viem";
 import confetti from "canvas-confetti";
-import { DATA_SUFFIX, FACTORY, TOKENS, erc20Abi, explorer, factoryAbi, type Currency } from "@/lib/config";
-import { buildPlan, fmt, type Budget, type GoalDraft } from "@/lib/plan";
-import type { Rates } from "@/lib/rates";
+import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, erc20Abi, explorer, factoryAbi, type Currency, type Local } from "@/lib/config";
+import { buildPlan, fmt, saveCurrency, type Budget, type GoalDraft } from "@/lib/plan";
+import { convert, type Rates } from "@/lib/rates";
 
 export function useRates() {
   const [rates, setRates] = useState<Rates | null>(null);
@@ -19,7 +19,7 @@ export function useRates() {
 const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
 const btn = "rounded-full bg-emerald-600 px-5 py-2.5 font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
 
-export function GoalCards({ initial, onConfirm }: { initial: GoalDraft[]; onConfirm: (g: GoalDraft[]) => void }) {
+export function GoalCards({ initial, home, onConfirm }: { initial: GoalDraft[]; home: Local; onConfirm: (g: GoalDraft[]) => void }) {
   const [goals, setGoals] = useState(initial);
   const rates = useRates();
   const set = (i: number, p: Partial<GoalDraft>) => setGoals((g) => g.map((x, j) => (j === i ? { ...x, ...p } : x)));
@@ -41,17 +41,15 @@ export function GoalCards({ initial, onConfirm }: { initial: GoalDraft[]; onConf
                 onChange={(e) => set(i, { amount: Number(e.target.value) })}
               />
               <select className="rounded-xl border border-gray-200 px-2" value={g.currency} onChange={(e) => set(i, { currency: e.target.value as Currency })}>
-                <option>ARS</option>
-                <option>USD</option>
-                <option>BRL</option>
+                {LOCAL_CODES.map((c) => <option key={c} value={c}>{LOCALS[c].flag} {c}</option>)}
+                <option value="USD">💵 USD</option>
               </select>
             </div>
             <div className="mt-2 flex items-center justify-between text-sm text-gray-500">
               <input type="month" className="rounded-lg border border-gray-200 px-2 py-1" value={g.deadline} onChange={(e) => set(i, { deadline: e.target.value })} />
-              {rates && g.currency !== "ARS" && <span>≈ {fmt(g.amount * (g.currency === "USD" ? rates.arsPerUsd : rates.arsPerBrl))}</span>}
+              {rates && g.currency !== home && <span>≈ {fmt(convert(g.amount, g.currency, home, rates), home)}</span>}
             </div>
-            {g.currency === "BRL" && <p className="mt-2 text-xs text-emerald-700">🇧🇷 Se ahorra en wBRL: la moneda en la que vas a gastar.</p>}
-            {g.currency === "USD" && <p className="mt-2 text-xs text-amber-700">💵 Se guarda en pesos; ajusto la meta con el tipo de cambio.</p>}
+            <CurrencyNote goal={g.currency} home={home} />
           </div>
         ))}
       </div>
@@ -60,16 +58,37 @@ export function GoalCards({ initial, onConfirm }: { initial: GoalDraft[]; onConf
   );
 }
 
-export function BudgetForm({ suggested, onConfirm }: { suggested: string[]; onConfirm: (b: Budget) => void }) {
-  const [income, setIncome] = useState(1_500_000);
+function CurrencyNote({ goal, home }: { goal: Currency; home: Local }) {
+  if (goal === home) return null;
+  if (goal === "USD")
+    return <p className="mt-2 text-xs text-amber-700">💵 Se guarda en {LOCALS[home].symbol}, sin dolarizarte; ajusto la meta con el tipo de cambio.</p>;
+  const { fxBlocked } = saveCurrency(goal, home);
+  return fxBlocked ? (
+    <p className="mt-2 text-xs text-amber-700">{LOCALS[goal].flag} Todavía no hay mercado onchain {LOCALS[home].symbol}→{LOCALS[goal].symbol} en Celo: se ahorra en {LOCALS[home].symbol} y se recalcula con el tipo de cambio.</p>
+  ) : (
+    <p className="mt-2 text-xs text-emerald-700">{LOCALS[goal].flag} Se ahorra en {LOCALS[goal].symbol}, la moneda en la que vas a gastar. El agente convierte vía Textile.</p>
+  );
+}
+
+export function BudgetForm({ suggested, home: initialHome, onConfirm }: { suggested: string[]; home: Local; onConfirm: (b: Budget) => void }) {
+  const [home, setHome] = useState<Local>(initialHome);
+  const [income, setIncome] = useState(0);
   const [costs, setCosts] = useState(() =>
     (suggested?.length ? suggested : ["Alquiler", "Comida", "Internet", "Gimnasio"]).map((name) => ({ name, amount: 0 })),
   );
   const fixed = costs.reduce((s, c) => s + (c.amount || 0), 0);
   return (
     <div className={card}>
-      <label className="text-sm font-semibold text-gray-600">💰 ¿Cuánto te entra por mes? (ARS)</label>
-      <input type="number" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-lg font-bold" value={income} onChange={(e) => setIncome(Number(e.target.value))} />
+      <label className="text-sm font-semibold text-gray-600">🌎 ¿En qué moneda cobrás?</label>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {LOCAL_CODES.map((c) => (
+          <button key={c} onClick={() => setHome(c)} className={`rounded-full px-3 py-1.5 text-sm ${home === c ? "bg-emerald-600 text-white" : "bg-emerald-50 text-emerald-800"}`}>
+            {LOCALS[c].flag} {LOCALS[c].symbol}
+          </button>
+        ))}
+      </div>
+      <label className="mt-4 block text-sm font-semibold text-gray-600">💰 ¿Cuánto te entra por mes? ({home})</label>
+      <input type="number" className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-lg font-bold" value={income || ""} placeholder="0" onChange={(e) => setIncome(Number(e.target.value))} />
       <p className="mt-4 text-sm font-semibold text-gray-600">🧾 Lo que pagás sí o sí cada mes</p>
       <div className="mt-2 space-y-2">
         {costs.map((c, i) => (
@@ -81,8 +100,8 @@ export function BudgetForm({ suggested, onConfirm }: { suggested: string[]; onCo
         <button className="text-sm text-emerald-600" onClick={() => setCosts((x) => [...x, { name: "", amount: 0 }])}>+ agregar gasto</button>
       </div>
       <div className="mt-4 flex items-center justify-between">
-        <span className="text-sm text-gray-600">Te quedan libres: <b>{fmt(income - fixed)}</b></span>
-        <button className={btn} disabled={income <= 0 || fixed >= income} onClick={() => onConfirm({ income, costs })}>Listo</button>
+        <span className="text-sm text-gray-600">Te quedan libres: <b>{fmt(income - fixed, home)}</b></span>
+        <button className={btn} disabled={income <= 0 || fixed >= income} onClick={() => onConfirm({ home, income, costs })}>Listo</button>
       </div>
     </div>
   );
@@ -114,19 +133,19 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
     if (!address || !plan) return;
     try {
       setErr("");
-      const warsBps = plan.rows.reduce((s, r) => s + r.bps, 0);
+      const homeToken = LOCALS[budget.home].token;
       // Bounded allowance: ~3 months of savings, never infinite.
-      const allowance = parseUnits(String(Math.ceil((budget.income * warsBps * 3) / 10000)), 18);
+      const allowance = parseUnits(String(Math.ceil((budget.income * plan.totalBps * 3) / 10000)), 18);
       setStep("approve");
-      const a = await writeContract(config, { address: TOKENS.wARS, abi: erc20Abi, functionName: "approve", args: [FACTORY, allowance], dataSuffix: DATA_SUFFIX });
+      const a = await writeContract(config, { address: homeToken, abi: erc20Abi, functionName: "approve", args: [FACTORY, allowance], dataSuffix: DATA_SUFFIX });
       setTx((t) => [...t, a]);
       await waitForTransactionReceipt(config, { hash: a });
       setStep("create");
       const h = await writeContract(config, {
         address: FACTORY,
         abi: factoryAbi,
-        functionName: "createBatch",
-        args: [plan.rows.map((r) => ({ token: r.token, name: `${r.emoji} ${r.name}`, target: r.target, deadline: r.deadlineTs, bps: r.bps }))],
+        functionName: "createBatchWithIncome",
+        args: [homeToken, plan.rows.map((r) => ({ token: r.token, name: `${r.emoji} ${r.name}`, target: r.target, deadline: r.deadlineTs, bps: r.bps }))],
         dataSuffix: DATA_SUFFIX,
       });
       setTx((t) => [...t, h]);
@@ -170,12 +189,12 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
                 onChange={(e) => setBps(plan.rows.map((x, j) => (j === i ? Number(e.target.value) : x.bps)))}
               />
               <p className="text-xs text-gray-500">
-                {fmt(r.monthlyArs)}/mes · meta {fmt(r.amount, r.currency)} en {r.months} {r.months === 1 ? "mes" : "meses"}
-                {r.token === TOKENS.wBRL ? " · se llena en wBRL" : ""}
+                {fmt(r.monthlyHome, budget.home)}/mes · meta {fmt(r.amount, r.currency)} en {r.months} {r.months === 1 ? "mes" : "meses"}
+                {r.saveIn !== budget.home ? ` · se llena en ${LOCALS[r.saveIn].symbol} vía Textile` : ""}
               </p>
             </div>
           ))}
-          <p className="text-sm text-gray-600">Libre para vos: <b>{(libre / 100).toFixed(1)}%</b> · gastos fijos {fmt(plan.fixed)}</p>
+          <p className="text-sm text-gray-600">Libre para vos: <b>{(libre / 100).toFixed(1)}%</b> · gastos fijos {fmt(plan.fixed, budget.home)}</p>
         </div>
       </div>
       {plan.scaled && <p className="mt-3 rounded-xl bg-amber-50 p-2 text-sm text-amber-800">⚠️ Con lo que te queda libre no llegás a todo a tiempo: ajusté proporcionalmente. Podés mover los sliders o correr fechas.</p>}

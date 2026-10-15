@@ -3,12 +3,15 @@ import { useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { Chat } from "@/components/Chat";
-import { Dashboard, useAlcancias } from "@/components/Dashboard";
+import { Dashboard, useAlcancias, useHome } from "@/components/Dashboard";
+import { useRates } from "@/components/ToolCards";
 import { AGENT, explorer } from "@/lib/config";
 
 export default function Home() {
   const { address, isConnected } = useAccount();
   const { count, loading, refetch } = useAlcancias(address);
+  const rates = useRates();
+  const { home } = useHome(address, rates);
   const [chat, setChat] = useState(false);
   const showChat = isConnected && !loading && (chat || count === 0);
 
@@ -24,10 +27,10 @@ export default function Home() {
           <div className="text-8xl">💰</div>
           <h1 className="mt-4 text-4xl font-black leading-tight">Ahorrá para lo que querés,<br />en tu moneda.</h1>
           <p className="mt-3 max-w-md text-gray-600">
-            Un agente que arma tu plan, reparte cada peso que te entra en alcancías onchain y te frena los impulsos. En pesos, sin pasar por el dólar.
+            Un agente que arma tu plan, reparte cada ingreso en alcancías onchain y te frena los impulsos. En tu moneda local, sin pasar por el dólar.
           </p>
           <div className="mt-6"><ConnectButton label="Conectá tu wallet para empezar" /></div>
-          <p className="mt-6 text-xs text-gray-400">Celo mainnet · wARS y wBRL de Ripio</p>
+          <p className="mt-6 text-xs text-gray-400">🇦🇷 🇧🇷 🇲🇽 🇨🇴 🇵🇪 🇨🇱 · stablecoins locales de Ripio · FX con Textile · Celo</p>
         </section>
       )}
 
@@ -35,7 +38,7 @@ export default function Home() {
 
       {showChat && (
         <section className="flex h-[calc(100dvh-7rem)] flex-col">
-          <Chat onCreated={() => { setChat(false); refetch(); }} />
+          <Chat home={home} onCreated={() => { setChat(false); refetch(); }} />
         </section>
       )}
 

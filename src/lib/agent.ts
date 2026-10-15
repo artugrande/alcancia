@@ -19,16 +19,18 @@ import {
   ATTRIBUTION_CODES,
   FACTORY,
   FACTORY_DEPLOY_BLOCK,
-  POOLS,
+  LOCALS,
+  LOCAL_CODES,
   POOL_FEE,
   TOKENS,
+  TOKEN_SYMBOL,
   UNISWAP_SWAP_ROUTER_02,
   alcanciaAbi,
   erc20Abi,
   factoryAbi,
-  poolAbi,
+  localOf,
 } from "./config";
-import { forno, ratesFromSlot0, type Rates } from "./rates";
+import { forno, readRates, type Rates } from "./rates";
 
 export const account = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as Hex);
 
@@ -178,13 +180,21 @@ export async function batchCall(calls: Call[]): Promise<{ results: Hex[]; receip
 
 // ---------------------------------------------------------------- sweep cycle
 
-export type SweepLog = {
-  user: Address;
-  income: string;
-  sweepTx?: Hex;
-  fx?: { alcancia: Address; inWars: string; outBrl?: string; legs?: Leg[]; swapTx?: Hex; depositTx?: Hex; error?: string }[];
-  skipped?: string;
+export type FxLog = {
+  alcancia: Address;
+  from: string;
+  to: string;
+  amountIn: string;
+  amountOut?: string;
+  legs?: Leg[];
+  depositTx?: Hex;
+  refundTx?: Hex;
+  error?: string;
 };
+
+export type SweepLog = { user: Address; incomeToken?: string; income: string; sweepTx?: Hex; fx?: FxLog[]; skipped?: string };
+
+const ZERO = "0x0000000000000000000000000000000000000000";
 
 export async function runSweep(onlyUser?: Address) {
   const head = await sqdSafeHead();
@@ -192,70 +202,69 @@ export async function runSweep(onlyUser?: Address) {
     (g) => !onlyUser || g.user.toLowerCase() === onlyUser.toLowerCase(),
   );
   const users = [...new Set(goals.map((g) => g.user.toLowerCase()))] as Address[];
+  const tokens = LOCAL_CODES.map((c) => LOCALS[c].token);
 
-  // One paid batch: per user lastSweptBlock, paused, wARS balance, allowance, current bps;
-  // plus both pool prices for FX.
+  // One paid Chainstack batch (US$0.01) with everything the agent needs to decide:
+  // per user: income token, cursor, paused, total bps, and balance + allowance of every wFiat.
+  const PER = 4 + tokens.length * 2;
   const calls: Call[] = [];
   for (const u of users) {
+    calls.push({ to: FACTORY, data: encodeFunctionData({ abi: factoryAbi, functionName: "incomeTokenOf", args: [u] }) });
     calls.push({ to: FACTORY, data: encodeFunctionData({ abi: factoryAbi, functionName: "lastSweptBlock", args: [u] }) });
     calls.push({ to: FACTORY, data: encodeFunctionData({ abi: factoryAbi, functionName: "paused", args: [u] }) });
-    calls.push({ to: TOKENS.wARS, data: encodeFunctionData({ abi: erc20Abi, functionName: "balanceOf", args: [u] }) });
-    calls.push({ to: TOKENS.wARS, data: encodeFunctionData({ abi: erc20Abi, functionName: "allowance", args: [u, FACTORY] }) });
     calls.push({ to: FACTORY, data: encodeFunctionData({ abi: factoryAbi, functionName: "totalBps", args: [u] }) });
+    for (const t of tokens) {
+      calls.push({ to: t, data: encodeFunctionData({ abi: erc20Abi, functionName: "balanceOf", args: [u] }) });
+      calls.push({ to: t, data: encodeFunctionData({ abi: erc20Abi, functionName: "allowance", args: [u, FACTORY] }) });
+    }
   }
-  calls.push({ to: POOLS.wARS_USDT, data: encodeFunctionData({ abi: poolAbi, functionName: "slot0" }) });
-  calls.push({ to: POOLS.wBRL_USDT, data: encodeFunctionData({ abi: poolAbi, functionName: "slot0" }) });
-  const { results, receipt } = await batchCall(calls);
-
+  const [{ results, receipt }, rates] = await Promise.all([
+    users.length ? batchCall(calls) : Promise.resolve({ results: [] as Hex[], receipt: { paid: false, via: "forno" as const, error: "sin usuarios" } }),
+    readRates(),
+  ]);
   const dec = (fn: string, abi: typeof factoryAbi | typeof erc20Abi, i: number) =>
     decodeFunctionResult({ abi: abi as typeof factoryAbi, functionName: fn, data: results[i] }) as unknown;
-  const n = users.length * 5;
-  const slotA = decodeFunctionResult({ abi: poolAbi, functionName: "slot0", data: results[n] });
-  const slotB = decodeFunctionResult({ abi: poolAbi, functionName: "slot0", data: results[n + 1] });
-  const rates = ratesFromSlot0(slotA[0], slotB[0]);
 
   const logs: SweepLog[] = [];
   for (let i = 0; i < users.length; i++) {
     const user = users[i];
-    const last = Number(dec("lastSweptBlock", factoryAbi, i * 5) as bigint);
-    const paused = dec("paused", factoryAbi, i * 5 + 1) as boolean;
-    const balance = dec("balanceOf", erc20Abi, i * 5 + 2) as bigint;
-    const allowance = dec("allowance", erc20Abi, i * 5 + 3) as bigint;
-    const totalBps = BigInt(dec("totalBps", factoryAbi, i * 5 + 4) as number | bigint);
-    const mine = goals.filter((g) => g.user.toLowerCase() === user);
+    const o = i * PER;
+    const incomeToken = dec("incomeTokenOf", factoryAbi, o) as Address;
+    const last = Number(dec("lastSweptBlock", factoryAbi, o + 1) as bigint);
+    const paused = dec("paused", factoryAbi, o + 2) as boolean;
+    const totalBps = BigInt(dec("totalBps", factoryAbi, o + 3) as number | bigint);
+    if (!incomeToken || incomeToken === ZERO) { logs.push({ user, income: "0", skipped: "sin moneda de ingreso" }); continue; }
     if (paused) { logs.push({ user, income: "0", skipped: "pausado" }); continue; }
+    const ti = tokens.findIndex((t) => t.toLowerCase() === incomeToken.toLowerCase());
+    const balance = dec("balanceOf", erc20Abi, o + 4 + ti * 2) as bigint;
+    const allowance = dec("allowance", erc20Abi, o + 5 + ti * 2) as bigint;
+    const home = localOf(incomeToken);
+    const mine = goals.filter((g) => g.user.toLowerCase() === user);
 
     const from = Math.max(last + 1, Math.min(...mine.map((g) => g.block)));
     const own = new Set([FACTORY, account.address, ...mine.map((g) => g.alcancia)].map((x) => x.toLowerCase()));
-    const transfers = (await incomingTransfers(user, TOKENS.wARS, from, head)).filter(
-      (t) => !own.has(t.from.toLowerCase()),
-    );
+    const transfers = (await incomingTransfers(user, incomeToken, from, head)).filter((t) => !own.has(t.from.toLowerCase()));
     let income = transfers.reduce((s, t) => s + t.amount, 0n);
-    if (income === 0n) { logs.push({ user, income: "0", skipped: "sin ingresos nuevos" }); continue; }
+    const base = { user, incomeToken: LOCALS[home].symbol };
+    if (income === 0n) { logs.push({ ...base, income: "0", skipped: "sin ingresos nuevos" }); continue; }
     if (income > balance) income = balance;
-    if (totalBps > 0n && (income * totalBps) / 10000n > allowance) {
-      income = (allowance * 10000n) / totalBps;
-    }
-    if (income === 0n) { logs.push({ user, income: "0", skipped: "sin allowance" }); continue; }
+    if (totalBps > 0n && (income * totalBps) / 10000n > allowance) income = (allowance * 10000n) / totalBps;
+    if (income === 0n) { logs.push({ ...base, income: "0", skipped: "sin permiso suficiente" }); continue; }
 
     const sweepTx = await agentWallet.writeContract({
       address: FACTORY,
       abi: factoryAbi,
       functionName: "sweep",
-      args: [user, TOKENS.wARS, income, BigInt(head)],
+      args: [user, incomeToken, income, BigInt(head)],
     });
     await forno.waitForTransactionReceipt({ hash: sweepTx });
-    const log: SweepLog = { user, income: income.toString(), sweepTx, fx: [] };
+    const log: SweepLog = { ...base, income: income.toString(), sweepTx, fx: [] };
 
-    for (const g of mine.filter((g) => g.token.toLowerCase() === TOKENS.wBRL.toLowerCase() && g.bps > 0)) {
-      const inWars = (income * BigInt(g.bps)) / 10000n;
-      if (inWars === 0n) continue;
-      try {
-        const fx = await swapWarsToBrlAndDeposit(inWars, g.alcancia, rates);
-        log.fx!.push({ alcancia: g.alcancia, inWars: inWars.toString(), ...fx });
-      } catch (e) {
-        log.fx!.push({ alcancia: g.alcancia, inWars: inWars.toString(), error: String(e).slice(0, 300) });
-      }
+    // Shares of goals in another local currency were sent to the agent: convert and deposit.
+    for (const g of mine.filter((g) => g.token.toLowerCase() !== incomeToken.toLowerCase() && g.bps > 0)) {
+      const amount = (income * BigInt(g.bps)) / 10000n;
+      if (amount === 0n) continue;
+      log.fx!.push(await convertAndDeposit(user, incomeToken, g.token, amount, g.alcancia, rates));
     }
     logs.push(log);
   }
@@ -385,17 +394,50 @@ async function leg(sell: Address, buy: Address, amountIn: bigint, minOut: bigint
   }
 }
 
-// wARS → USD₮ → wBRL. No direct local-currency market exists on Celo yet, so USD₮ is a
-// technical bridge between two legs; the user never holds dollars.
-async function swapWarsToBrlAndDeposit(amountIn: bigint, alcancia: Address, rates: Rates) {
-  const usdExpected = Number(amountIn) / 1e18 / rates.arsPerUsd;
-  const leg1 = await leg(TOKENS.wARS, TOKENS.USDT, amountIn, BigInt(Math.floor(usdExpected * 0.97 * 1e6)));
-  const usd = BigInt(leg1.amountOut);
-  const brlExpected = (Number(usd) / 1e6) * rates.brlPerUsd;
-  const leg2 = await leg(TOKENS.USDT, TOKENS.wBRL, usd, BigInt(Math.floor(brlExpected * 0.97 * 1e6)) * 10n ** 12n);
-  const out = BigInt(leg2.amountOut);
-  await ensureAllowance(TOKENS.wBRL, alcancia, out);
-  const depositTx = await agentWallet.writeContract({ address: alcancia, abi: alcanciaAbi, functionName: "deposit", args: [out] });
-  await forno.waitForTransactionReceipt({ hash: depositTx });
-  return { outBrl: out.toString(), legs: [leg1, leg2], swapTx: leg2.tx, depositTx };
+const minOut = (amountIn: bigint, from: Address, to: Address, r: Rates) => {
+  const per = (t: Address) => (t.toLowerCase() === TOKENS.USDT.toLowerCase() ? 1 : r.perUsd[localOf(t)]);
+  const dec = (t: Address) => (t.toLowerCase() === TOKENS.USDT.toLowerCase() ? 6 : 18);
+  const out = (Number(amountIn) / 10 ** dec(from) / per(from)) * per(to) * 0.97; // 3% slippage
+  return BigInt(Math.floor(out * 1e6)) * 10n ** BigInt(dec(to) - 6);
+};
+
+// local → USD₮ → local. There is no direct market between two local currencies on Celo
+// yet, so USD₮ is a technical bridge between two Textile legs; the user never holds dollars.
+// If a leg fails, the agent gives the money back instead of keeping it.
+async function convertAndDeposit(user: Address, from: Address, to: Address, amount: bigint, alcancia: Address, r: Rates): Promise<FxLog> {
+  const log: FxLog = { alcancia, from: TOKEN_SYMBOL[from.toLowerCase()], to: TOKEN_SYMBOL[to.toLowerCase()], amountIn: amount.toString(), legs: [] };
+  let usd: bigint;
+  try {
+    const l1 = await leg(from, TOKENS.USDT, amount, minOut(amount, from, TOKENS.USDT, r));
+    log.legs!.push(l1);
+    usd = BigInt(l1.amountOut);
+  } catch (e) {
+    log.error = `no se pudo convertir: ${String(e).slice(0, 160)}`;
+    log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, amount] });
+    return log;
+  }
+  try {
+    const l2 = await leg(TOKENS.USDT, to, usd, minOut(usd, TOKENS.USDT, to, r));
+    log.legs!.push(l2);
+    const out = BigInt(l2.amountOut);
+    await ensureAllowance(to, alcancia, out);
+    log.depositTx = await agentWallet.writeContract({ address: alcancia, abi: alcanciaAbi, functionName: "deposit", args: [out] });
+    await forno.waitForTransactionReceipt({ hash: log.depositTx });
+    log.amountOut = out.toString();
+  } catch (e) {
+    log.error = `no se pudo completar la conversión: ${String(e).slice(0, 160)}`;
+    // Undo leg 1 back to the user's own currency; as a last resort return the USD₮.
+    try {
+      const back = await leg(TOKENS.USDT, from, usd, minOut(usd, TOKENS.USDT, from, r));
+      log.legs!.push(back);
+      log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, BigInt(back.amountOut)] });
+    } catch {
+      log.refundTx = await agentWallet.writeContract({ address: TOKENS.USDT, abi: erc20Abi_transfer, functionName: "transfer", args: [user, usd] });
+    }
+  }
+  return log;
 }
+
+const erc20Abi_transfer = [
+  { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+] as const;

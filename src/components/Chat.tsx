@@ -4,18 +4,21 @@ import { DefaultChatTransport, lastAssistantMessageIsCompleteWithToolCalls, type
 import { useEffect, useRef, useState } from "react";
 import { GoalCards, BudgetForm, PlanCard } from "./ToolCards";
 import type { Budget, GoalDraft } from "@/lib/plan";
+import type { Local } from "@/lib/config";
 
 const HELLO: UIMessage[] = [
   {
     id: "hello",
     role: "assistant",
-    parts: [{ type: "text", text: "¡Hola! 💰 Soy Alcancía. Vamos a armar tu plan de ahorro en pesos onchain. Para arrancar: ¿cuáles son tus metas este año?" }],
+    parts: [{ type: "text", text: "¡Hola! 💰 Soy Alcancía. Vamos a armar tu plan de ahorro en tu moneda, onchain. Para arrancar: ¿cuáles son tus metas este año?" }],
   },
 ];
 
-export function Chat({ onCreated }: { onCreated: () => void }) {
+export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }) {
+  const homeRef = useRef(home);
+  homeRef.current = home;
   const { messages, sendMessage, addToolOutput, status } = useChat({
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport: new DefaultChatTransport({ api: "/api/chat", body: () => ({ home: homeRef.current }) }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     messages: HELLO,
   });
@@ -47,6 +50,7 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
                       <GoalCards
                         key={k}
                         initial={(part.input as { goals: GoalDraft[] }).goals}
+                        home={budget?.home ?? home}
                         onConfirm={(g) => {
                           setGoals(g);
                           addToolOutput({ tool: "showGoals", toolCallId: part.toolCallId, output: { confirmed: g } });
@@ -62,6 +66,7 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
                       <BudgetForm
                         key={k}
                         suggested={(part.input as { suggestedCosts: string[] }).suggestedCosts}
+                        home={home}
                         onConfirm={(b) => {
                           setBudget(b);
                           addToolOutput({ tool: "askBudget", toolCallId: part.toolCallId, output: b });
@@ -106,7 +111,7 @@ export function Chat({ onCreated }: { onCreated: () => void }) {
       >
         <input
           className="flex-1 rounded-full border border-emerald-200 bg-white px-4 py-3 outline-none focus:border-emerald-500"
-          placeholder="Ej: quiero ir a Florianópolis en enero y hacer un Ironman"
+          placeholder="Ej: viajar a Florianópolis en enero, un Ironman, cambiar la notebook"
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />

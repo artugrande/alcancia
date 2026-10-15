@@ -4,7 +4,8 @@ import { useAccount, useConfig, useReadContract, useReadContracts } from "wagmi"
 import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatUnits, parseUnits, type Address } from "viem";
 import confetti from "canvas-confetti";
-import { DATA_SUFFIX, FACTORY, TOKENS, TOKEN_SYMBOL, alcanciaAbi, erc20Abi, explorer, factoryAbi, rampUrl } from "@/lib/config";
+import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, TOKEN_SYMBOL, alcanciaAbi, erc20Abi, explorer, factoryAbi, localOf, offrampUrl, rampUrl, type Local } from "@/lib/config";
+import { convert, type Rates } from "@/lib/rates";
 import { fmt } from "@/lib/plan";
 import { useRates } from "./ToolCards";
 
@@ -38,7 +39,7 @@ export function useAlcancias(user?: Address) {
       address: a,
       bps: Number(bps[i]),
       name: (r(0) as string) ?? "…",
-      token: (r(1) as Address) ?? TOKENS.wARS,
+      token: (r(1) as Address) ?? LOCALS.ARS.token,
       target: (r(2) as bigint) ?? 0n,
       deadline: (r(3) as bigint) ?? 0n,
       balance: (r(4) as bigint) ?? 0n,
@@ -50,15 +51,35 @@ export function useAlcancias(user?: Address) {
   return { items, loading: list.isLoading, count: addrs.length, refetch };
 }
 
+/** The user's income currency: set onchain at creation, else guessed from their largest wFiat balance. */
+export function useHome(user?: Address, rates?: Rates | null) {
+  const income = useReadContract({ address: FACTORY, abi: factoryAbi, functionName: "incomeTokenOf", args: user ? [user] : undefined, query: { enabled: !!user } });
+  const balances = useReadContracts({
+    contracts: user ? LOCAL_CODES.map((c) => ({ address: LOCALS[c].token, abi: erc20Abi, functionName: "balanceOf", args: [user] })) : [],
+  });
+  const onchain = income.data as Address | undefined;
+  if (onchain && onchain !== "0x0000000000000000000000000000000000000000") return { home: localOf(onchain), set: true, balances: balances.data, refetch: balances.refetch };
+  let best: Local = "ARS";
+  let bestUsd = 0;
+  LOCAL_CODES.forEach((c, i) => {
+    const b = Number(formatUnits((balances.data?.[i]?.result as unknown as bigint | undefined) ?? 0n, 18));
+    const usd = rates?.perUsd[c] ? b / rates.perUsd[c] : 0;
+    if (usd > bestUsd) { bestUsd = usd; best = c; }
+  });
+  return { home: best, set: false, balances: balances.data, refetch: balances.refetch };
+}
+
 export function Dashboard({ onAdd }: { onAdd: () => void }) {
   const { address } = useAccount();
   const { items, refetch } = useAlcancias(address);
   const rates = useRates();
+  const { home } = useHome(address, rates);
+  const homeToken = LOCALS[home].token;
   const wallet = useReadContracts({
     contracts: address
       ? [
-          { address: TOKENS.wARS, abi: erc20Abi, functionName: "balanceOf", args: [address] },
-          { address: TOKENS.wARS, abi: erc20Abi, functionName: "allowance", args: [address, FACTORY] },
+          { address: homeToken, abi: erc20Abi, functionName: "balanceOf", args: [address] },
+          { address: homeToken, abi: erc20Abi, functionName: "allowance", args: [address, FACTORY] },
         ]
       : [],
   });
@@ -85,8 +106,10 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
   const allowance = (wallet.data?.[1]?.result as bigint) ?? 0n;
   const totalSaved = items.reduce((s, a) => {
     const v = Number(formatUnits(a.balance, 18));
-    return s + (a.token.toLowerCase() === TOKENS.wBRL.toLowerCase() ? v * (rates?.arsPerBrl ?? 0) : v);
+    const c = localOf(a.token);
+    return s + (c === home ? v : rates ? convert(v, c, home, rates) : 0);
   }, 0);
+  const ramp = address ? rampUrl(address, home) : null;
   const avg = items.length ? items.reduce((s, a) => s + (a.target ? Number((a.balance * 10000n) / a.target) / 100 : 0), 0) / items.length : 0;
   const level = avg >= 75 ? "🏆 Leyenda del ahorro" : avg >= 50 ? "🥇 Ahorrista pro" : avg >= 25 ? "🥈 En racha" : avg > 0 ? "🥉 Arrancando" : "🐣 Recién nacido";
 
@@ -110,17 +133,17 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-sm opacity-80">Ahorrado en total</p>
-            <p className="text-3xl font-black">{fmt(totalSaved)}</p>
+            <p className="text-3xl font-black">{fmt(totalSaved, home)}</p>
             <p className="mt-1 text-sm">{level}</p>
           </div>
           <div className="text-right text-sm">
             <p className="opacity-80">En tu wallet</p>
-            <p className="font-bold">{fmt(Number(formatUnits(warsBalance, 18)), "wARS")}</p>
-            <p className="text-xs opacity-80">permiso al agente: {fmt(Number(formatUnits(allowance, 18)), "wARS")}</p>
+            <p className="font-bold">{LOCALS[home].flag} {fmt(Number(formatUnits(warsBalance, 18)), LOCALS[home].symbol)}</p>
+            <p className="text-xs opacity-80">permiso al agente: {fmt(Number(formatUnits(allowance, 18)), LOCALS[home].symbol)}</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <a href={address ? rampUrl(address) : "#"} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">💸 Cargar wARS (Ripio)</a>
+          {ramp && <a href={ramp} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">💸 Cargar {LOCALS[home].symbol} con Ripio</a>}
           <button onClick={runSync} disabled={sync.loading} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">
             {sync.loading ? "🤖 El agente está repartiendo…" : "🔄 Sincronizar"}
           </button>
@@ -133,7 +156,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
 
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((a) => (
-          <AlcanciaCard key={a.address} a={a} arsPerBrl={rates?.arsPerBrl} onRitual={() => setRitual(a)} onChange={refetch} />
+          <AlcanciaCard key={a.address} a={a} home={home} rates={rates} onRitual={() => setRitual(a)} onChange={refetch} />
         ))}
       </div>
       {ritual && <Ritual a={ritual} onClose={() => { setRitual(null); refetch(); }} />}
@@ -141,7 +164,9 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
   );
 }
 
-function AlcanciaCard({ a, arsPerBrl, onRitual, onChange }: { a: Info; arsPerBrl?: number; onRitual: () => void; onChange: () => void }) {
+function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: Local; rates: Rates | null; onRitual: () => void; onChange: () => void }) {
+  const cur = localOf(a.token);
+  const [withdrew, setWithdrew] = useState<number | null>(null);
   const config = useConfig();
   const [busy, setBusy] = useState(false);
   const sym = TOKEN_SYMBOL[a.token.toLowerCase()] ?? "wARS";
@@ -153,7 +178,7 @@ function AlcanciaCard({ a, arsPerBrl, onRitual, onChange }: { a: Info; arsPerBrl
   const unlockAt = Number(a.pending[1]) * 1000;
   const canExecute = pendingAmount > 0n && (a.pending[2] || Date.now() >= unlockAt);
 
-  async function send(fn: string, args: unknown[] = []) {
+  async function send(fn: string, args: unknown[] = []): Promise<void> {
     setBusy(true);
     try {
       const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: fn, args, dataSuffix: DATA_SUFFIX });
@@ -174,20 +199,20 @@ function AlcanciaCard({ a, arsPerBrl, onRitual, onChange }: { a: Info; arsPerBrl
         <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-400 transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-sm">
-        <span><b>{fmt(bal, sym as "wARS")}</b> de {fmt(tgt, sym as "wARS")}</span>
+        <span><b>{fmt(bal, sym)}</b> de {fmt(tgt, sym)}</span>
         <span className="text-gray-500">{pct.toFixed(0)}%</span>
       </div>
-      {sym === "wBRL" && arsPerBrl && <p className="text-xs text-emerald-700">≈ {fmt(bal * arsPerBrl)} · ahorrás en la moneda del viaje 🇧🇷</p>}
+      {cur !== home && rates && <p className="text-xs text-emerald-700">{LOCALS[cur].flag} ≈ {fmt(convert(bal, cur, home, rates), home)} · ahorrás en la moneda en la que vas a gastar</p>}
       <p className="mt-1 text-xs text-gray-400">
         Hasta {new Date(Number(a.deadline) * 1000).toLocaleDateString("es-AR", { month: "long", year: "numeric" })} ·{" "}
         <a className="underline" href={explorer(a.address)} target="_blank">{a.address.slice(0, 8)}…</a>
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
         {a.unlocked ? (
-          <button className={btn} disabled={busy || a.balance === 0n} onClick={() => send("withdraw", [a.balance])}>🎉 Retirar</button>
+          <button className={btn} disabled={busy || a.balance === 0n} onClick={() => send("withdraw", [a.balance]).then(() => setWithdrew(bal))}>🎉 Retirar</button>
         ) : pendingAmount > 0n ? (
           canExecute ? (
-            <button className={btn} disabled={busy} onClick={() => send("executeEarlyWithdraw")}>Sacar {fmt(Number(formatUnits(pendingAmount, 18)), sym as "wARS")}</button>
+            <button className={btn} disabled={busy} onClick={() => send("executeEarlyWithdraw").then(() => setWithdrew(Number(formatUnits(pendingAmount, 18))))}>Sacar {fmt(Number(formatUnits(pendingAmount, 18)), sym)}</button>
           ) : (
             <>
               <span className="self-center text-xs text-gray-500">⏳ Se libera el {new Date(unlockAt).toLocaleString("es-AR")}</span>
@@ -199,6 +224,11 @@ function AlcanciaCard({ a, arsPerBrl, onRitual, onChange }: { a: Info; arsPerBrl
           <button className={ghost} disabled={a.balance === 0n} onClick={onRitual}>🔨 Romper la alcancía</button>
         )}
       </div>
+      {withdrew !== null && offrampUrl(cur, withdrew) && (
+        <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+          🏦 Ya está en tu wallet. ¿Lo pasás a tu cuenta bancaria? Retirá con Ripio →
+        </a>
+      )}
     </div>
   );
 }
@@ -296,34 +326,44 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
 type SyncResult = {
   head: number;
   receipt: { paid: boolean; via: string; tx?: string; amount?: string; error?: string };
-  logs: { user: string; income: string; sweepTx?: string; skipped?: string; fx?: { inWars: string; outBrl?: string; legs?: { venue: string; tx: string }[]; depositTx?: string; error?: string }[] }[];
+  logs: {
+    user: string;
+    incomeToken?: string;
+    income: string;
+    sweepTx?: string;
+    skipped?: string;
+    fx?: { from: string; to: string; amountIn: string; amountOut?: string; legs?: { venue: string; tx: string; sell: string; buy: string }[]; depositTx?: string; refundTx?: string; error?: string }[];
+  }[];
 };
+
+const sym = (t: string) => TOKEN_SYMBOL[t.toLowerCase()] ?? "USD₮";
 
 function SyncCard({ r }: { r: SyncResult }) {
   const mine = r.logs[0];
   return (
-    <div className="rounded-3xl bg-slate-900 p-4 font-mono text-xs text-slate-100">
-      <p>🤖 agente · bloque #{r.head} (SQD vía buy, gratis)</p>
+    <div className="rounded-3xl bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-100">
+      <p>🤖 agente · bloque #{r.head} · ingresos detectados con SQD vía buy (gratis)</p>
       <p>
-        📡 lectura de estado: {r.receipt.via === "chainstack" ? `Chainstack vía buy · pagó ${r.receipt.amount}` : "Forno (fallback)"}
+        📡 estado leído {r.receipt.via === "chainstack" ? `con Chainstack vía buy · pagó ${r.receipt.amount} por x402` : "con Forno (fallback)"}
         {r.receipt.tx && <> · <a className="underline" href={explorer(r.receipt.tx)} target="_blank">recibo</a></>}
       </p>
-      {!mine && <p>sin alcancías para barrer</p>}
+      {!mine && <p>sin alcancías para repartir</p>}
       {mine?.skipped && <p>⏸ {mine.skipped}</p>}
       {mine?.sweepTx && (
         <p>
-          ✅ ingreso {fmt(Number(formatUnits(BigInt(mine.income), 18)))} repartido ·{" "}
+          ✅ ingreso de {fmt(Number(formatUnits(BigInt(mine.income), 18)), mine.incomeToken)} repartido ·{" "}
           <a className="underline" href={explorer(mine.sweepTx)} target="_blank">tx</a>
         </p>
       )}
       {mine?.fx?.map((f, i) => (
         <p key={i}>
-          💱 {fmt(Number(formatUnits(BigInt(f.inWars), 18)))} → {f.outBrl ? fmt(Number(formatUnits(BigInt(f.outBrl), 18)), "BRL") : "…"}
+          💱 {fmt(Number(formatUnits(BigInt(f.amountIn), 18)), f.from)} → {f.amountOut ? fmt(Number(formatUnits(BigInt(f.amountOut), 18)), f.to) : f.to}
           {f.legs?.map((l, j) => (
-            <span key={j}> · <a className="underline" href={explorer(l.tx)} target="_blank">{l.venue === "textile" ? "Textile" : "Uniswap"} {j === 0 ? "ARS→USD₮" : "USD₮→BRL"}</a></span>
+            <span key={j}> · <a className="underline" href={explorer(l.tx)} target="_blank">{l.venue === "textile" ? "Textile" : "Uniswap"} {sym(l.sell)}→{sym(l.buy)}</a></span>
           ))}
           {f.depositTx && <> · <a className="underline" href={explorer(f.depositTx)} target="_blank">depósito</a></>}
-          {f.error && <span className="text-red-300"> · {f.error}</span>}
+          {f.refundTx && <> · <a className="underline" href={explorer(f.refundTx)} target="_blank">devuelto a tu wallet</a></>}
+          {f.error && <span className="text-amber-300"> · {f.error}</span>}
         </p>
       ))}
     </div>

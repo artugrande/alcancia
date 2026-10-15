@@ -31,6 +31,8 @@ contract AlcanciaTest is Test {
         eur.mint(user, 1_000_000 * E18);
         vm.prank(user);
         usd.approve(address(factory), type(uint256).max);
+        vm.prank(user);
+        factory.setIncomeToken(address(usd));
     }
 
     // ------------------------------------------------------------ helpers
@@ -491,5 +493,24 @@ contract AlcanciaTest is Test {
         vm.prank(address(0));
         vm.expectRevert(Alcancia.NotAgent.selector);
         a.agentApprove();
+    }
+
+    // ------------------------------------------------------------ income token
+
+    function test_sweep_rejectsOtherIncomeToken() public {
+        _createOne(100 * E18, uint64(block.timestamp + 30 days));
+        vm.roll(block.number + 1);
+        vm.prank(agent);
+        vm.expectRevert(AlcanciaFactory.WrongIncomeToken.selector);
+        factory.sweep(user, address(eur), 10 * E18, uint64(block.number));
+    }
+
+    function test_createBatchWithIncome_setsToken() public {
+        AlcanciaFactory.GoalInput[] memory g = new AlcanciaFactory.GoalInput[](1);
+        g[0] = _goal(address(eur), 100 * E18, uint64(block.timestamp + 30 days), 1000);
+        address other = makeAddr("other");
+        vm.prank(other);
+        factory.createBatchWithIncome(address(eur), g);
+        assertEq(factory.incomeTokenOf(other), address(eur));
     }
 }

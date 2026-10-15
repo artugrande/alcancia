@@ -36,6 +36,8 @@ contract AlcanciaFactory is ReentrancyGuard {
     mapping(address user => uint256) public totalBps;
     mapping(address user => bool) public paused;
     mapping(address user => uint64) public lastSweptBlock;
+    /// @notice The local stablecoin the user gets paid in; sweeps only move this token.
+    mapping(address user => address) public incomeTokenOf;
 
     // ---------------------------------------------------------------- events
     event AlcanciaCreated(
@@ -49,6 +51,7 @@ contract AlcanciaFactory is ReentrancyGuard {
     );
     event BpsSet(address indexed user, address indexed alcancia, uint16 bps);
     event PausedSet(address indexed user, bool paused);
+    event IncomeTokenSet(address indexed user, address indexed token);
     event Swept(address indexed user, address indexed alcancia, uint256 amount);
     event FxPulled(address indexed user, address indexed alcancia, uint256 amount);
     event SweepCompleted(address indexed user, address indexed incomeToken, uint256 income, uint64 toBlock, uint256 total);
@@ -65,6 +68,7 @@ contract AlcanciaFactory is ReentrancyGuard {
     error StaleBlock();
     error FutureBlock();
     error ZeroAddress();
+    error WrongIncomeToken();
 
     modifier onlyAdmin() {
         if (msg.sender != admin) revert NotAdmin();
@@ -100,7 +104,22 @@ contract AlcanciaFactory is ReentrancyGuard {
 
     // ---------------------------------------------------------------- user
 
-    function createBatch(GoalInput[] calldata goals) external returns (address[] memory created) {
+    function setIncomeToken(address token) public {
+        if (token == address(0)) revert ZeroAddress();
+        incomeTokenOf[msg.sender] = token;
+        emit IncomeTokenSet(msg.sender, token);
+    }
+
+    /// @notice Sets the income currency and creates the goals in one transaction.
+    function createBatchWithIncome(address incomeToken, GoalInput[] calldata goals)
+        external
+        returns (address[] memory created)
+    {
+        setIncomeToken(incomeToken);
+        return createBatch(goals);
+    }
+
+    function createBatch(GoalInput[] calldata goals) public returns (address[] memory created) {
         uint256 n = goals.length;
         if (n == 0) revert EmptyBatch();
         created = new address[](n);
@@ -163,6 +182,7 @@ contract AlcanciaFactory is ReentrancyGuard {
         returns (uint256 total)
     {
         if (paused[user]) revert UserPaused();
+        if (incomeToken != incomeTokenOf[user]) revert WrongIncomeToken();
         if (toBlock <= lastSweptBlock[user]) revert StaleBlock();
         if (toBlock > block.number) revert FutureBlock();
         lastSweptBlock[user] = toBlock;

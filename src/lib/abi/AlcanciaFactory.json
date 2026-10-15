@@ -145,8 +145,78 @@
   },
   {
     "type": "function",
+    "name": "createBatchWithIncome",
+    "inputs": [
+      {
+        "name": "incomeToken",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "goals",
+        "type": "tuple[]",
+        "internalType": "struct AlcanciaFactory.GoalInput[]",
+        "components": [
+          {
+            "name": "token",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "internalType": "string"
+          },
+          {
+            "name": "target",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "deadline",
+            "type": "uint64",
+            "internalType": "uint64"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
+      }
+    ],
+    "outputs": [
+      {
+        "name": "created",
+        "type": "address[]",
+        "internalType": "address[]"
+      }
+    ],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "implementation",
     "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "incomeTokenOf",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [
       {
         "name": "",
@@ -257,6 +327,19 @@
         "name": "bps",
         "type": "uint16",
         "internalType": "uint16"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setIncomeToken",
+    "inputs": [
+      {
+        "name": "token",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -486,6 +569,25 @@
   },
   {
     "type": "event",
+    "name": "IncomeTokenSet",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "token",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PausedSet",
     "inputs": [
       {
@@ -640,6 +742,11 @@
   {
     "type": "error",
     "name": "UserPaused",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "WrongIncomeToken",
     "inputs": []
   },
   {
