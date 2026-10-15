@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { codeFromRepo, toDataSuffix } from "@celo/attribution-tags";
 
-const code = process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || codeFromRepo("artugrande/alcancia");
+const code = [process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || "celo_cbcc681c15b7", codeFromRepo("artugrande/alcancia")];
 const suffix = toDataSuffix(code);
 const account = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as Hex);
 const wallet = createWalletClient({ account, chain: celo, transport: http("https://forno.celo.org") });

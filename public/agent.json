@@ -12,9 +12,9 @@
   ],
   "supportedTrust": ["reputation"],
   "x-contracts": {
-    "AlcanciaFactory": "eip155:42220:0x054f5f0a422bc10d38fbd8f360496215a39458df",
-    "AlcanciaImplementation": "eip155:42220:0xa043b2f74f2de79857e42fae8029292c87f89a2d"
+    "AlcanciaFactory": "eip155:42220:0x92fc4878cc3692840eea5dcf8de54fe75e856d9c",
+    "AlcanciaImplementation": "eip155:42220:0x3784cb9f62dc02c750b85727a68999617a7140c8"
   },
-  "x-attribution": "celo_595aac690f07",
+  "x-attribution": ["celo_cbcc681c15b7", "celo_595aac690f07"],
   "x-source": "https://github.com/artugrande/alcancia"
 }

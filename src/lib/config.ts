@@ -8,10 +8,12 @@ export const factoryAbi = factoryAbiJson as Abi;
 
 export const REPO = "artugrande/alcancia";
 
-// ERC-8021: the code assigned at enrollment wins; otherwise the repo-derived one.
-export const ATTRIBUTION_CODE =
-  process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || codeFromRepo(REPO);
-export const DATA_SUFFIX = toDataSuffix(ATTRIBUTION_CODE);
+// ERC-8021: the code assigned at Loops House enrollment (credited by the hackathon) plus the
+// repo-derived one. Both ride in a single suffix on every transaction.
+export const ATTRIBUTION_CODES = [
+  ...new Set([process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || "celo_cbcc681c15b7", codeFromRepo(REPO)]),
+];
+export const DATA_SUFFIX = toDataSuffix(ATTRIBUTION_CODES);
 
 export const FACTORY = (process.env.NEXT_PUBLIC_FACTORY_ADDRESS ||
   "0x0000000000000000000000000000000000000000") as Address;

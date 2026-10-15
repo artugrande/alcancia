@@ -16,7 +16,7 @@ import { withAttribution } from "@celo/attribution-tags";
 import { wrapFetchWithPaymentFromConfig, decodePaymentResponseHeader } from "@x402/fetch";
 import { ExactEvmSchemeV1 } from "@x402/evm/exact/v1/client";
 import {
-  ATTRIBUTION_CODE,
+  ATTRIBUTION_CODES,
   FACTORY,
   FACTORY_DEPLOY_BLOCK,
   POOLS,
@@ -36,7 +36,7 @@ export const agentWallet = createWalletClient({
   account,
   chain: celo,
   transport: http("https://forno.celo.org"),
-}).extend(withAttribution(ATTRIBUTION_CODE));
+}).extend(withAttribution(ATTRIBUTION_CODES));
 
 // ---------------------------------------------------------------- SQD (free, via buy gateway)
 

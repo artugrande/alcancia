@@ -5,7 +5,7 @@ import { codeFromRepo, withAttribution } from "@celo/attribution-tags";
 
 const REGISTRY = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
 const URI = "https://alcancia-celo.vercel.app/agent.json";
-const code = process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || codeFromRepo("artugrande/alcancia");
+const code = [process.env.NEXT_PUBLIC_ATTRIBUTION_CODE || "celo_cbcc681c15b7", codeFromRepo("artugrande/alcancia")];
 const account = privateKeyToAccount(process.env.AGENT_PRIVATE_KEY as Hex);
 const wallet = createWalletClient({ account, chain: celo, transport: http("https://forno.celo.org") }).extend(withAttribution(code));
 const pub = createPublicClient({ chain: celo, transport: http("https://forno.celo.org") });
