@@ -171,6 +171,17 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
   const { t, lang } = useI18n();
   const cur = localOf(a.token);
   const [withdrew, setWithdrew] = useState<number | null>(null);
+  const [contrib, setContrib] = useState<string | null>(null);
+  const [contribMsg, setContribMsg] = useState("");
+  const { address } = useAccount();
+  const walletBal = useReadContract({
+    address: a.token,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address },
+  });
+  const myBal = Number(formatUnits((walletBal.data as bigint | undefined) ?? 0n, 18));
   const config = useConfig();
   const [busy, setBusy] = useState(false);
   const sym = TOKEN_SYMBOL[a.token.toLowerCase()] ?? "wARS";
@@ -213,6 +224,7 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
         <a className="underline" href={explorer(a.address)} target="_blank">{a.address.slice(0, 8)}…</a>
       </p>
       <div className="mt-3 flex flex-wrap gap-2">
+        <button className={ghost} onClick={() => { setContrib(contrib === null ? "" : null); setContribMsg(""); }}>{t.contribute}</button>
         {a.unlocked ? (
           <button className={btn} disabled={busy || a.balance === 0n} onClick={() => send("withdraw", [a.balance]).then(() => setWithdrew(bal))}>{t.withdraw}</button>
         ) : pendingAmount > 0n ? (
@@ -229,6 +241,50 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
           <button className={ghost} disabled={a.balance === 0n} onClick={onRitual}>{t.breakIt}</button>
         )}
       </div>
+      {contrib !== null && (
+        <div className="mt-3 rounded-2xl bg-emerald-50 p-3 text-sm">
+          <p className="text-xs text-gray-600">{t.contributeHelp(fmt(myBal, sym))}</p>
+          <div className="mt-2 flex gap-2">
+            <input
+              type="number"
+              className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2"
+              placeholder="0"
+              value={contrib}
+              onChange={(e) => setContrib(e.target.value)}
+            />
+            <button
+              className={btn}
+              disabled={busy || !Number(contrib) || Number(contrib) > myBal}
+              onClick={async () => {
+                const amt = parseUnits(contrib, 18);
+                setBusy(true);
+                setContribMsg("");
+                try {
+                  if (getAccount(config).chainId !== 42220) await switchChain(config, { chainId: 42220 });
+                  const ap = await writeContract(config, { address: a.token, abi: erc20Abi, functionName: "approve", args: [a.address, amt], dataSuffix: DATA_SUFFIX });
+                  await waitForTransactionReceipt(config, { hash: ap });
+                  const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: "deposit", args: [amt], dataSuffix: DATA_SUFFIX });
+                  await waitForTransactionReceipt(config, { hash: h });
+                  confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } });
+                  setContrib(null);
+                  walletBal.refetch();
+                  onChange();
+                } catch (e) {
+                  setContribMsg((e as Error).message.split("\n")[0]);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {busy ? "…" : t.contributeGo}
+            </button>
+          </div>
+          {Number(contrib) > myBal && address && rampUrl(address, cur) && (
+            <a href={rampUrl(address, cur)!} target="_blank" className="mt-2 block text-xs font-semibold text-emerald-700 underline">{t.loadWith(sym)}</a>
+          )}
+          {contribMsg && <p className="mt-2 text-xs text-red-600">{contribMsg}</p>}
+        </div>
+      )}
       {withdrew !== null && offrampUrl(cur, withdrew) && (
         <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
           {t.offramp}
