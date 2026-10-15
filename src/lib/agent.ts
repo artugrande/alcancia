@@ -404,7 +404,10 @@ const minOut = (amountIn: bigint, from: Address, to: Address, r: Rates) => {
 // local → USD₮ → local. There is no direct market between two local currencies on Celo
 // yet, so USD₮ is a technical bridge between two Textile legs; the user never holds dollars.
 // If a leg fails, the agent gives the money back instead of keeping it.
-async function convertAndDeposit(user: Address, from: Address, to: Address, amount: bigint, alcancia: Address, r: Rates): Promise<FxLog> {
+export async function convertAndDeposit(user: Address, from: Address, to: Address, amount: bigint, alcancia: Address, r: Rates, marker?: Hex): Promise<FxLog> {
+  // `marker` (a source tx hash) rides in the calldata of the final deposit/refund so the
+  // same contribution can never be processed twice (see contributionProcessed).
+  const ds = marker ? { dataSuffix: marker } : {};
   const log: FxLog = { alcancia, from: TOKEN_SYMBOL[from.toLowerCase()], to: TOKEN_SYMBOL[to.toLowerCase()], amountIn: amount.toString(), legs: [] };
   let usd: bigint;
   try {
@@ -413,7 +416,7 @@ async function convertAndDeposit(user: Address, from: Address, to: Address, amou
     usd = BigInt(l1.amountOut);
   } catch (e) {
     log.error = `no se pudo convertir: ${String(e).slice(0, 160)}`;
-    log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, amount] });
+    log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, amount], ...ds });
     return log;
   }
   try {
@@ -421,7 +424,7 @@ async function convertAndDeposit(user: Address, from: Address, to: Address, amou
     log.legs!.push(l2);
     const out = BigInt(l2.amountOut);
     await ensureAllowance(to, alcancia, out);
-    log.depositTx = await agentWallet.writeContract({ address: alcancia, abi: alcanciaAbi, functionName: "deposit", args: [out] });
+    log.depositTx = await agentWallet.writeContract({ address: alcancia, abi: alcanciaAbi, functionName: "deposit", args: [out], ...ds });
     await forno.waitForTransactionReceipt({ hash: log.depositTx });
     log.amountOut = out.toString();
   } catch (e) {
@@ -430,9 +433,9 @@ async function convertAndDeposit(user: Address, from: Address, to: Address, amou
     try {
       const back = await leg(TOKENS.USDT, from, usd, minOut(usd, TOKENS.USDT, from, r));
       log.legs!.push(back);
-      log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, BigInt(back.amountOut)] });
+      log.refundTx = await agentWallet.writeContract({ address: from, abi: erc20Abi_transfer, functionName: "transfer", args: [user, BigInt(back.amountOut)], ...ds });
     } catch {
-      log.refundTx = await agentWallet.writeContract({ address: TOKENS.USDT, abi: erc20Abi_transfer, functionName: "transfer", args: [user, usd] });
+      log.refundTx = await agentWallet.writeContract({ address: TOKENS.USDT, abi: erc20Abi_transfer, functionName: "transfer", args: [user, usd], ...ds });
     }
   }
   return log;
@@ -441,3 +444,43 @@ async function convertAndDeposit(user: Address, from: Address, to: Address, amou
 const erc20Abi_transfer = [
   { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
 ] as const;
+
+// ---------------------------------------------------------------- contributions in another currency
+
+/** Has the agent already sent a tx carrying `marker` in its calldata since `fromBlock`? (SQD, free) */
+export async function contributionProcessed(marker: Hex, fromBlock: number): Promise<boolean> {
+  const head = (await fetch(`${SQD}/head`, { cache: "no-store" }).then((r) => r.json())).number as number;
+  const needle = marker.slice(2).toLowerCase();
+  let from = fromBlock;
+  while (from <= head) {
+    const r = await fetch(`${SQD}/stream`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "evm",
+        fromBlock: from,
+        toBlock: head,
+        fields: { block: { number: true }, transaction: { hash: true, input: true } },
+        transactions: [{ from: [account.address.toLowerCase()] }],
+      }),
+      cache: "no-store",
+    });
+    if (r.status === 204 || !r.ok) break;
+    const lines = (await r.text()).split("\n").filter(Boolean);
+    if (!lines.length) break;
+    let last = from;
+    for (const line of lines) {
+      const b = JSON.parse(line) as { header: { number: number }; transactions?: { input: string }[] };
+      last = b.header.number;
+      if (b.transactions?.some((t) => t.input.toLowerCase().includes(needle))) return true;
+    }
+    from = last + 1;
+  }
+  // Also check the latest few blocks straight from the chain (SQD can lag a couple of blocks).
+  const latest = await forno.getBlockNumber();
+  for (let b = BigInt(Math.max(fromBlock, head - 2)); b <= latest; b++) {
+    const blk = await forno.getBlock({ blockNumber: b, includeTransactions: true });
+    if (blk.transactions.some((t) => typeof t !== "string" && t.from.toLowerCase() === account.address.toLowerCase() && t.input.toLowerCase().includes(needle))) return true;
+  }
+  return false;
+}

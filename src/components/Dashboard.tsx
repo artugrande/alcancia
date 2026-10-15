@@ -4,7 +4,7 @@ import { useAccount, useConfig, useReadContract, useReadContracts } from "wagmi"
 import { getAccount, switchChain, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatUnits, parseUnits, type Address } from "viem";
 import confetti from "canvas-confetti";
-import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, TOKEN_SYMBOL, alcanciaAbi, erc20Abi, explorer, factoryAbi, localOf, offrampUrl, rampUrl, type Local } from "@/lib/config";
+import { AGENT, DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, TOKEN_SYMBOL, canConvert, alcanciaAbi, erc20Abi, explorer, factoryAbi, localOf, offrampUrl, rampUrl, type Local } from "@/lib/config";
 import { convert, type Rates } from "@/lib/rates";
 import { fmt } from "@/lib/plan";
 import { useRates } from "./ToolCards";
@@ -13,6 +13,9 @@ import { useI18n } from "@/lib/i18n";
 const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
 const btn = "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
 const ghost = "rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50";
+const erc20TransferAbi = [
+  { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
+] as const;
 const FIELDS = ["name", "token", "target", "deadline", "balance", "pendingWithdraw", "unlocked"] as const;
 
 type Info = {
@@ -174,14 +177,16 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
   const [contrib, setContrib] = useState<string | null>(null);
   const [contribMsg, setContribMsg] = useState("");
   const { address } = useAccount();
-  const walletBal = useReadContract({
-    address: a.token,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    query: { enabled: !!address },
+  // Balances of every local stablecoin: you can top up from any currency the agent can convert.
+  const walletBals = useReadContracts({
+    contracts: address ? LOCAL_CODES.map((c) => ({ address: LOCALS[c].token, abi: erc20Abi, functionName: "balanceOf", args: [address] })) : [],
   });
-  const myBal = Number(formatUnits((walletBal.data as bigint | undefined) ?? 0n, 18));
+  const balOf = (c: Local) => Number(formatUnits((walletBals.data?.[LOCAL_CODES.indexOf(c)]?.result as unknown as bigint | undefined) ?? 0n, 18));
+  const sources = LOCAL_CODES.filter((c) => c === cur || (balOf(c) > 0 && canConvert(c, cur)));
+  const [src, setSrc] = useState<Local>(cur);
+  const myBal = balOf(src);
+  const walletBal = walletBals;
+  const [fxResult, setFxResult] = useState("");
   const config = useConfig();
   const [busy, setBusy] = useState(false);
   const sym = TOKEN_SYMBOL[a.token.toLowerCase()] ?? "wARS";
@@ -243,7 +248,20 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
       </div>
       {contrib !== null && (
         <div className="mt-3 rounded-2xl bg-emerald-50 p-3 text-sm">
-          <p className="text-xs text-gray-600">{t.contributeHelp(fmt(myBal, sym))}</p>
+          <div className="mb-2 flex flex-wrap gap-1">
+            {sources.map((c) => (
+              <button key={c} onClick={() => setSrc(c)} className={`rounded-full px-2.5 py-1 text-xs ${src === c ? "bg-emerald-600 text-white" : "bg-white text-emerald-800"}`}>
+                {LOCALS[c].flag} {LOCALS[c].symbol}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-gray-600">{src === cur ? t.contributeHelp(fmt(myBal, sym)) : t.contributeFx(fmt(myBal, LOCALS[src].symbol), sym)}</p>
+          {src !== cur && rates && Number(contrib) > 0 && (
+            <p className="mt-1 text-xs text-emerald-800">≈ {fmt(convert(Number(contrib), src, cur, rates) * 0.99, sym)}</p>
+          )}
+          {src !== cur && rates && Number(contrib) > 0 && convert(Number(contrib), src, "USD", rates) < 1.5 && (
+            <p className="mt-1 text-xs text-amber-700">{t.fxMin(fmt(convert(1.5, "USD", src, rates), LOCALS[src].symbol))}</p>
+          )}
           <div className="mt-2 flex gap-2">
             <input
               type="number"
@@ -254,17 +272,28 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
             />
             <button
               className={btn}
-              disabled={busy || !Number(contrib) || Number(contrib) > myBal}
+              disabled={busy || !Number(contrib) || Number(contrib) > myBal || (src !== cur && !!rates && convert(Number(contrib), src, "USD", rates) < 1.5)}
               onClick={async () => {
                 const amt = parseUnits(contrib, 18);
                 setBusy(true);
                 setContribMsg("");
                 try {
                   if (getAccount(config).chainId !== 42220) await switchChain(config, { chainId: 42220 });
-                  const ap = await writeContract(config, { address: a.token, abi: erc20Abi, functionName: "approve", args: [a.address, amt], dataSuffix: DATA_SUFFIX });
-                  await waitForTransactionReceipt(config, { hash: ap });
-                  const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: "deposit", args: [amt], dataSuffix: DATA_SUFFIX });
-                  await waitForTransactionReceipt(config, { hash: h });
+                  if (src === cur) {
+                    const ap = await writeContract(config, { address: a.token, abi: erc20Abi, functionName: "approve", args: [a.address, amt], dataSuffix: DATA_SUFFIX });
+                    await waitForTransactionReceipt(config, { hash: ap });
+                    const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: "deposit", args: [amt], dataSuffix: DATA_SUFFIX });
+                    await waitForTransactionReceipt(config, { hash: h });
+                  } else {
+                    // One signature: send the other currency to the agent, which converts on Textile and deposits.
+                    const h = await writeContract(config, { address: LOCALS[src].token, abi: erc20TransferAbi, functionName: "transfer", args: [AGENT, amt], dataSuffix: DATA_SUFFIX });
+                    await waitForTransactionReceipt(config, { hash: h });
+                    setContribMsg(t.converting);
+                    const res = await fetch("/api/contribute", { method: "POST", body: JSON.stringify({ tx: h, alcancia: a.address }) }).then((x) => x.json());
+                    if (res.error && !res.depositTx) throw new Error(res.error);
+                    if (res.refundTx) throw new Error(t.refundedMsg);
+                    setFxResult(res.amountOut ? `💱 ${fmt(Number(formatUnits(BigInt(res.amountIn), 18)), LOCALS[src].symbol)} → ${fmt(Number(formatUnits(BigInt(res.amountOut), 18)), sym)}` : "");
+                  }
                   confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } });
                   setContrib(null);
                   walletBal.refetch();
@@ -279,12 +308,13 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
               {busy ? "…" : t.contributeGo}
             </button>
           </div>
-          {Number(contrib) > myBal && address && rampUrl(address, cur) && (
-            <a href={rampUrl(address, cur)!} target="_blank" className="mt-2 block text-xs font-semibold text-emerald-700 underline">{t.loadWith(sym)}</a>
+          {Number(contrib) > myBal && address && rampUrl(address, src) && (
+            <a href={rampUrl(address, src)!} target="_blank" className="mt-2 block text-xs font-semibold text-emerald-700 underline">{t.loadWith(LOCALS[src].symbol)}</a>
           )}
-          {contribMsg && <p className="mt-2 text-xs text-red-600">{contribMsg}</p>}
+          {contribMsg && <p className={`mt-2 text-xs ${contribMsg === t.converting ? "text-emerald-700" : "text-red-600"}`}>{contribMsg}</p>}
         </div>
       )}
+      {fxResult && <p className="mt-2 text-xs text-emerald-700">{fxResult} · Textile</p>}
       {withdrew !== null && offrampUrl(cur, withdrew) && (
         <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
           {t.offramp}
