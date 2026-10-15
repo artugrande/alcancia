@@ -46,16 +46,20 @@ const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
 type SqdLog = { address: string; topics: string[]; data: string; transactionHash: string; logIndex: number };
 type SqdBlock = { header: { number: number }; logs?: SqdLog[] };
 
-export async function sqdFinalizedHead(): Promise<number> {
-  const r = await fetch(`${SQD}/finalized-head`, { cache: "no-store" });
-  return (await r.json()).number;
+// Celo L2 blocks finalize on L1 after ~30 min; for a live product we follow the sequencer
+// head with a small confirmation margin instead (single sequencer, reorgs are very rare).
+const CONFIRMATIONS = 3;
+
+export async function sqdSafeHead(): Promise<number> {
+  const r = await fetch(`${SQD}/head`, { cache: "no-store" });
+  return (await r.json()).number - CONFIRMATIONS;
 }
 
 async function sqdLogs(filter: Record<string, unknown>, fromBlock: number, toBlock: number) {
   const out: (SqdLog & { block: number })[] = [];
   let from = fromBlock;
   while (from <= toBlock) {
-    const r = await fetch(`${SQD}/finalized-stream`, {
+    const r = await fetch(`${SQD}/stream`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -183,7 +187,7 @@ export type SweepLog = {
 };
 
 export async function runSweep(onlyUser?: Address) {
-  const head = await sqdFinalizedHead();
+  const head = await sqdSafeHead();
   const goals = (await goalsFromSqd(head)).filter(
     (g) => !onlyUser || g.user.toLowerCase() === onlyUser.toLowerCase(),
   );

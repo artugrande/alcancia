@@ -303,7 +303,7 @@ function SyncCard({ r }: { r: SyncResult }) {
   const mine = r.logs[0];
   return (
     <div className="rounded-3xl bg-slate-900 p-4 font-mono text-xs text-slate-100">
-      <p>🤖 agente · bloque finalizado #{r.head} (SQD vía buy, gratis)</p>
+      <p>🤖 agente · bloque #{r.head} (SQD vía buy, gratis)</p>
       <p>
         📡 lectura de estado: {r.receipt.via === "chainstack" ? `Chainstack vía buy · pagó ${r.receipt.amount}` : "Forno (fallback)"}
         {r.receipt.tx && <> · <a className="underline" href={explorer(r.receipt.tx)} target="_blank">recibo</a></>}
