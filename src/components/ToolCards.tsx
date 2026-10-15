@@ -133,7 +133,7 @@ export function PlanCard({ note, goals, budget, onCreated, onDone }: { note: str
   const [step, setStep] = useState<"idle" | "approve" | "create" | "done" | "error">("idle");
   const [err, setErr] = useState("");
   const [tx, setTx] = useState<string[]>([]);
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const config = useConfig();
   const plan = useMemo(() => (rates ? buildPlan(goals, budget, rates, bps) : null), [goals, budget, rates, bps]);
   if (!plan) return <div className={card}>{t.readingRates}</div>;
@@ -226,6 +226,8 @@ export function PlanCard({ note, goals, budget, onCreated, onDone }: { note: str
           <a key={h} href={explorer(h)} target="_blank" className="text-xs text-emerald-600 underline">{h.slice(0, 10)}…</a>
         ))}
       </div>
+      {!address && <p className="mt-2 text-sm text-amber-700">{t.needWallet}</p>}
+      {address && chainId !== 42220 && <p className="mt-2 text-sm text-amber-700">{t.needCelo}</p>}
       {err && <p className="mt-2 text-sm text-red-600">{err}</p>}
       {step === "done" && address && (
         <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-900">
