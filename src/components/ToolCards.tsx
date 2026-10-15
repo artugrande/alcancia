@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useAccount, useConfig } from "wagmi";
-import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
+import { switchChain, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { decodeEventLog, parseUnits, type Address } from "viem";
 import confetti from "canvas-confetti";
 import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, erc20Abi, explorer, factoryAbi, type Currency, type Local } from "@/lib/config";
@@ -151,6 +151,7 @@ export function PlanCard({ note, goals, budget, onCreated, onDone }: { note: str
     if (!address || !plan) return;
     try {
       setErr("");
+      if (chainId !== 42220) await switchChain(config, { chainId: 42220 });
       const homeToken = LOCALS[budget.home].token;
       // Bounded allowance: ~3 months of savings, never infinite.
       const allowance = parseUnits(String(Math.ceil((budget.income * plan.totalBps * 3) / 10000)), 18);

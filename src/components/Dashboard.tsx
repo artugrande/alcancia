@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAccount, useConfig, useReadContract, useReadContracts } from "wagmi";
-import { waitForTransactionReceipt, writeContract } from "wagmi/actions";
+import { getAccount, switchChain, waitForTransactionReceipt, writeContract } from "wagmi/actions";
 import { formatUnits, parseUnits, type Address } from "viem";
 import confetti from "canvas-confetti";
 import { DATA_SUFFIX, FACTORY, LOCALS, LOCAL_CODES, TOKEN_SYMBOL, alcanciaAbi, erc20Abi, explorer, factoryAbi, localOf, offrampUrl, rampUrl, type Local } from "@/lib/config";
@@ -185,6 +185,7 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
   async function send(fn: string, args: unknown[] = []): Promise<void> {
     setBusy(true);
     try {
+      if (getAccount(config).chainId !== 42220) await switchChain(config, { chainId: 42220 });
       const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: fn, args, dataSuffix: DATA_SUFFIX });
       await waitForTransactionReceipt(config, { hash: h });
       onChange();
@@ -259,6 +260,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
     setMsg("");
     try {
       if (!hasPending) {
+        if (getAccount(config).chainId !== 42220) await switchChain(config, { chainId: 42220 });
         const h = await writeContract(config, { address: a.address, abi: alcanciaAbi, functionName: "requestEarlyWithdraw", args: [parseUnits(String(amount), 18)], dataSuffix: DATA_SUFFIX });
         await waitForTransactionReceipt(config, { hash: h });
       }
