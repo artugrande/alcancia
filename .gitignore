@@ -46,3 +46,4 @@ contracts/cache
 contracts/broadcast
 contracts/lib
 *.pdf
+!.env.example

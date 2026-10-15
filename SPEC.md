@@ -9,6 +9,20 @@
 ejemplo de referencia del Track 1 (Stable Agents: LatAm) de Agents on Open Rails.
 **Chain:** Celo mainnet (42220). **Estado:** spec, pre-build. **Fecha:** 2026-10-15.
 
+> **Estado (2026-10-15): MVP en producción** en https://alcancia-celo.vercel.app. Cambios respecto
+> de este spec, en orden:
+> - **Seis wFiat** (wARS, wBRL, wMXN, wCOP, wPEN, wCLP) como moneda de ingreso y de ahorro; la
+>   factory guarda la moneda de ingreso de cada usuario (`createBatchWithIncome`).
+> - **FX con Textile** (RFQ keyless, dos patas vía USD₮) con fallback a Uniswap v3 para
+>   wARS/wBRL y devolución automática si una pata falla. Corredores en vivo: wARS, wBRL, wCOP
+>   y venta de wMXN.
+> - **Detección de ingresos con SQD sobre la punta de la cadena** (−3 bloques), no sobre bloques
+>   finalizados: la finalidad de Celo en L1 tarda ~30 min.
+> - **Aportes voluntarios**, también desde otra moneda (el agente convierte vía Textile).
+> - **ES/EN** y **demo de un clic**. Cron cada 15 min (Vercel Pro).
+> - Attribution: `celo_cbcc681c15b7` (asignado) + `celo_595aac690f07` (derivado del repo).
+> - Direcciones actuales en el README.
+
 ---
 
 ## 1. Problema

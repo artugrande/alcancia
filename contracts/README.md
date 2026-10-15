@@ -1,66 +1,14 @@
-## Foundry
+# Alcancía contracts
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+- `src/AlcanciaFactory.sol`: registers users and their income currency, clones one `Alcancia` per goal, stores each goal's share (bps) and the per-user sweep cursor. `sweep()` (agent only) splits a paycheck: same-currency shares go to the alcancías, foreign-currency shares go to the agent for conversion.
+- `src/Alcancia.sol`: one per goal, owned by the user. Funds can only leave to the owner. Free withdrawal at target or deadline; early withdrawal after a 72 h delay or `agentApprove()`; lowering a target also waits 72 h.
 
-Foundry consists of:
-
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
-
-## Usage
-
-### Build
-
-```shell
-$ forge build
+```bash
+forge test        # 27 tests incl. fuzz
 ```
 
-### Test
+Deployed on Celo mainnet (verified on Blockscout):
+- AlcanciaFactory `0xbbab1b684212fc4cde02eafc69bba993934e2218`
+- Alcancia implementation `0x290c3c5404f34bcb8f06520a8be31fc65bd786d4`
 
-```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
+Deploys go through `../scripts/deploy.mts` (viem) so the creation tx carries the ERC-8021 attribution suffix.
