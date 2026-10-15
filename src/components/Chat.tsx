@@ -26,7 +26,9 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
   const [goals, setGoals] = useState<GoalDraft[]>([]);
   const [budget, setBudget] = useState<Budget | null>(null);
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [messages]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
   const busy = status === "submitted" || status === "streaming";
 
   return (

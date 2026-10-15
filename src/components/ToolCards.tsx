@@ -120,7 +120,7 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
   const plan = useMemo(() => (rates ? buildPlan(goals, budget, rates, bps) : null), [goals, budget, rates, bps]);
   if (!plan) return <div className={card}>Leyendo el tipo de cambio onchain…</div>;
 
-  const libre = 10000 - plan.totalBps;
+  const libre = Math.max(0, budget.income * (plan.freePct - plan.totalBps / 10000));
   let acc = 0;
   const stops = plan.rows.map((r, i) => {
     const s = `${COLORS[i % COLORS.length]} ${(acc / 100).toFixed(1)}% ${((acc + r.bps) / 100).toFixed(1)}%`;
@@ -194,7 +194,7 @@ export function PlanCard({ note, goals, budget, onCreated }: { note: string; goa
               </p>
             </div>
           ))}
-          <p className="text-sm text-gray-600">Libre para vos: <b>{(libre / 100).toFixed(1)}%</b> · gastos fijos {fmt(plan.fixed, budget.home)}</p>
+          <p className="text-sm text-gray-600">Te queda para gastar: <b>{fmt(libre, budget.home)}</b>/mes · gastos fijos {fmt(plan.fixed, budget.home)}</p>
         </div>
       </div>
       {plan.scaled && <p className="mt-3 rounded-xl bg-amber-50 p-2 text-sm text-amber-800">⚠️ Con lo que te queda libre no llegás a todo a tiempo: ajusté proporcionalmente. Podés mover los sliders o correr fechas.</p>}
