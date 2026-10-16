@@ -1,0 +1,27 @@
+{
+  "name": "alcancia-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion product demo video for Alcanc\u00eda",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "remotion render src/index.ts AlcanciaDemo out/alcancia-demo.mp4 --codec h264",
+    "still": "remotion still src/index.ts AlcanciaDemo out/still-40s.png --frame 1200",
+    "stills": "for f in 90 450 1200 1900 2580 2730 3060 3420 3600; do remotion still src/index.ts AlcanciaDemo out/still-$f.png --frame $f; done",
+    "music": "node scripts/make-music.mjs",
+    "typecheck": "tsc --noEmit",
+    "render:sandboxed": "remotion render src/index.ts AlcanciaDemo out/alcancia-demo.mp4 --codec h264 --browser-executable scripts/chrome-wrapper.sh"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.536",
+    "@remotion/google-fonts": "4.0.536",
+    "@remotion/player": "4.0.536",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "remotion": "4.0.536"
+  },
+  "devDependencies": {
+    "@types/react": "18.3.12",
+    "typescript": "5.6.3"
+  }
+}

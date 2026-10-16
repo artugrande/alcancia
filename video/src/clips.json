@@ -1,0 +1,28 @@
+{
+  "01-chat": {
+    "seconds": 12.2,
+    "startFrom": 0,
+    "playbackRate": 1
+  },
+  "02-plan": {
+    "seconds": 7.8,
+    "startFrom": 0,
+    "playbackRate": 1
+  },
+  "03-create": {
+    "seconds": 11.4,
+    "startFrom": 0,
+    "playbackRate": 1
+  },
+  "04-income": {
+    "seconds": 15.1,
+    "startFrom": 0,
+    "playbackRate": 1
+  },
+  "05-break": {
+    "seconds": 18,
+    "startFrom": 0,
+    "playbackRate": 1
+  },
+  "buyReceiptTx": "0x2f7bfeffa92fdba1062f1fcd86e3dd88ba078bed8a3e992fdd5100580342b46f"
+}

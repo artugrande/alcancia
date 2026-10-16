@@ -6,7 +6,7 @@ import { config } from "dotenv";
 import { createDecipheriv, createHash } from "node:crypto";
 import { mkdirSync, writeFileSync, readdirSync, renameSync } from "node:fs";
 import { chromium, type Page } from "playwright-core";
-import { createPublicClient, createWalletClient, http, parseUnits, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 
@@ -15,14 +15,11 @@ config({ path: "../.env.local" });
 
 const APP = process.env.APP_URL ?? "http://localhost:3077";
 const WARS = "0x0dc4f92879b7670e5f4e4e6e3c801d229129d90d";
-const SALARY = process.env.SALARY ?? "20000";
 
 const user = privateKeyToAccount(process.env.DEMO_USER_KEY as Hex);
-const employer = privateKeyToAccount(process.env.DEMO_EMPLOYER_KEY as Hex);
 const transport = http("https://forno.celo.org");
 const pub = createPublicClient({ chain: celo, transport });
 const userWallet = createWalletClient({ account: user, chain: celo, transport });
-const employerWallet = createWalletClient({ account: employer, chain: celo, transport });
 
 const t0 = Date.now();
 const markers: { name: string; t: number }[] = [];
@@ -114,6 +111,7 @@ async function slowType(page: Page, selector: string, text: string) {
 }
 
 let currentPage: Page | undefined;
+let closeAll: (() => Promise<void>) | undefined;
 async function main() {
   mkdirSync("out", { recursive: true });
   const browser = await chromium.launch({ channel: "chrome", headless: process.env.HEADED ? false : true });
@@ -134,6 +132,23 @@ async function main() {
   await context.addInitScript({ content: injected });
   const page = await context.newPage();
   currentPage = page;
+  page.on("pageerror", (e) => console.log("PAGEERROR", e.message.slice(0, 400)));
+  closeAll = async () => {
+    await context.close().catch(() => {});
+    await browser.close().catch(() => {});
+    const raw = readdirSync("out/raw").find((f) => f.endsWith(".webm"));
+    if (raw) renameSync(`out/raw/${raw}`, "out/demo.webm");
+  };
+  // The agent cycle needs the buy gateway; on networks that intercept TLS it can't be reached
+  // locally, so the Sync call is served by the same agent deployed on Vercel.
+  if (process.env.AGENT_URL) {
+    for (const path of ["sweep", "contribute"]) {
+      await page.route(`**/api/${path}`, async (route) => {
+        const r = await fetch(`${process.env.AGENT_URL}/api/${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: route.request().postData() ?? "{}" });
+        await route.fulfill({ status: r.status, contentType: "application/json", body: await r.text() });
+      });
+    }
+  }
   let riddleToken = "";
   page.on("response", async (r) => {
     if (r.url().endsWith("/api/unlock") && r.request().method() === "POST") {
@@ -145,8 +160,17 @@ async function main() {
   });
 
   mark("start");
-  await page.goto(`${APP}/?lang=en`);
-  await page.waitForSelector("text=Save for what you want");
+  const resume = process.env.FROM === "income";
+  for (let i = 0; i < 3; i++) {
+    await page.goto(`${APP}/?lang=en`);
+    try {
+      await page.waitForSelector("text=Connect your wallet to start", { timeout: 60_000 });
+      break;
+    } catch (e) {
+      if (i === 2) throw e;
+      console.log("   reload (first load failed)");
+    }
+  }
   await sleep(2500);
 
   // Connect
@@ -156,9 +180,12 @@ async function main() {
   await page.screenshot({ path: "out/modal.png" });
   const opt = page.getByText(/Demo Wallet|Browser Wallet|Injected|MetaMask/).first();
   await opt.click();
-  await page.waitForSelector("text=what are your goals", { timeout: 30_000 });
+  await page.waitForSelector(resume ? "text=Total saved" : "text=what are your goals", { timeout: 60_000 });
   await sleep(1500);
 
+  if (resume) {
+    await sleep(2000);
+  } else {
   // Chat
   mark("01-chat");
   await page.getByRole("button", { name: /Quick demo/ }).click();
@@ -193,22 +220,28 @@ async function main() {
   await page.waitForSelector("text=Total saved", { timeout: 60_000 });
   await sleep(3000);
 
-  // Payday: the employer pays the salary in wARS
+  }
+
+  // Payday: the salary in wARS is sent by a person (not by this script). Wait for it.
   mark("04-income");
-  const pay = await employerWallet.writeContract({
-    address: WARS,
-    abi: [{ type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "v", type: "uint256" }], outputs: [{ type: "bool" }] }],
-    functionName: "transfer",
-    args: [user.address, parseUnits(SALARY, 18)],
-  });
-  console.log("   salary", pay);
-  await pub.waitForTransactionReceipt({ hash: pay });
+  const balOf = () => pub.readContract({ address: WARS, abi: [{ type: "function", name: "balanceOf", stateMutability: "view", inputs: [{ name: "a", type: "address" }], outputs: [{ type: "uint256" }] }], functionName: "balanceOf", args: [user.address] });
+  // If the salary already arrived (e.g. a previous run was interrupted), don't wait again.
+  const before = process.env.SALARY_ALREADY ? -1n : await balOf();
+  writeFileSync("out/status.txt", `WAITING_SALARY ${user.address}\n`);
+  console.log(`   waiting for wARS to arrive at ${user.address} …`);
+  const deadline = Date.now() + 30 * 60_000;
+  while ((await balOf()) <= before) {
+    if (Date.now() > deadline) throw new Error("salary never arrived");
+    await sleep(4000);
+  }
+  writeFileSync("out/status.txt", "SALARY_RECEIVED\n");
   mark("salary-landed");
   await page.reload();
   await page.waitForSelector("text=Total saved", { timeout: 60_000 });
   await sleep(3000);
   // Give SQD a few blocks to index the salary
-  await sleep(8000);
+  if (!process.env.SALARY_ALREADY) await sleep(8000);
+  if (!process.env.SKIP_SYNC) {
   mark("sync-click");
   await page.getByRole("button", { name: /Sync/ }).click();
   await page.waitForSelector("text=/income of .* split/", { timeout: 300_000 });
@@ -218,6 +251,31 @@ async function main() {
   await sleep(7000);
   await page.evaluate(() => window.scrollTo({ top: 400, behavior: "smooth" }));
   await sleep(4000);
+  }
+
+  // Top up the trip goal from wARS: the agent converts via Textile and deposits wBRL.
+  if (process.env.CONTRIBUTE) {
+    mark("contribute");
+    const trip = page.locator("div.rounded-3xl", { hasText: "Florian" }).filter({ has: page.getByRole("button", { name: /Add money/ }) }).first();
+    await trip.scrollIntoViewIfNeeded();
+    await trip.getByRole("button", { name: /Add money/ }).click();
+    await sleep(1200);
+    await trip.getByRole("button", { name: /wARS/ }).click();
+    await sleep(800);
+    await slowType(page, "div.rounded-3xl:has-text('Florian') input[type=number]", process.env.CONTRIBUTE);
+    await sleep(1500);
+    await trip.getByRole("button", { name: "Add", exact: true }).click();
+    await page.waitForSelector("text=/· Textile/", { timeout: 300_000 });
+    mark("contribute-done");
+    await sleep(6000);
+    if (process.env.STOP_AFTER_CONTRIBUTE) {
+      mark("end");
+      await closeAll?.();
+      writeFileSync("out/markers.json", JSON.stringify(markers, null, 2));
+      console.log("done → out/demo.webm + out/markers.json");
+      return;
+    }
+  }
 
   // Try to break a piggy bank (first wARS one with balance)
   mark("05-break");
@@ -258,6 +316,7 @@ async function main() {
 
 main().catch(async (e) => {
   await currentPage?.screenshot({ path: "out/fail.png" }).catch(() => {});
+  await closeAll?.();
   writeFileSync("out/markers.json", JSON.stringify(markers, null, 2));
   console.error(e);
   process.exit(1);
