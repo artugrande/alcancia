@@ -403,6 +403,23 @@ async function ensureAllowance(token: Address, spender: Address, amount: bigint)
   await forno.waitForTransactionReceipt({ hash: h });
 }
 
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+/**
+ * What the agent received of `token` in a tx, read from the receipt's Transfer logs.
+ * Reading balanceOf right after a tx can hit a lagging RPC node and return the old value.
+ */
+function receivedFromReceipt(logs: readonly { address: string; topics: readonly string[]; data: string }[], token: Address) {
+  const me = account.address.toLowerCase().slice(2);
+  let sum = 0n;
+  for (const l of logs) {
+    if (l.address.toLowerCase() !== token.toLowerCase() || l.topics[0] !== TRANSFER_TOPIC) continue;
+    if (!l.topics[2]?.toLowerCase().endsWith(me)) continue;
+    sum += BigInt(l.data);
+  }
+  return sum;
+}
+
 export type Leg = { venue: "textile" | "uniswap"; sell: Address; buy: Address; amountIn: string; amountOut: string; tx: Hex; rfqId?: string; textileError?: string };
 
 async function textileLeg(sell: Address, buy: Address, amountIn: bigint): Promise<Leg> {
@@ -410,19 +427,17 @@ async function textileLeg(sell: Address, buy: Address, amountIn: bigint): Promis
   await ensureAllowance(sell, q.quote.reactor, BigInt(q.quote.takerPays));
   const exp = Number(q.quote.expiresAt);
   if (Date.now() >= (exp < 1e12 ? exp * 1000 : exp)) throw new Error("textile quote expired");
-  const before = await balanceOf(buy);
   const tx = await agentWallet.sendTransaction({ to: q.transactions.swap.to, data: q.transactions.swap.data, value: 0n });
   const rc = await forno.waitForTransactionReceipt({ hash: tx });
   if (rc.status !== "success") throw new Error("textile swap reverted");
   fetch(`${TEXTILE}/${q.rfqId}/submit`, { method: "POST", headers: { "content-type": "application/json", "X-Rfq-Claim": q.claimToken }, body: JSON.stringify({ txHash: tx }) }).catch(() => {});
-  const out = (await balanceOf(buy)) - before;
+  const out = receivedFromReceipt(rc.logs, buy);
   return { venue: "textile", sell, buy, amountIn: amountIn.toString(), amountOut: out.toString(), tx, rfqId: q.rfqId };
 }
 
 async function uniswapLeg(sell: Address, buy: Address, amountIn: bigint, minOut: bigint): Promise<Leg> {
   await ensureAllowance(sell, UNISWAP_SWAP_ROUTER_02, amountIn);
   const path = encodePacked(["address", "uint24", "address"], [sell, POOL_FEE, buy]);
-  const before = await balanceOf(buy);
   const tx = await agentWallet.writeContract({
     address: UNISWAP_SWAP_ROUTER_02,
     abi: routerAbi,
@@ -431,17 +446,20 @@ async function uniswapLeg(sell: Address, buy: Address, amountIn: bigint, minOut:
   });
   const rc = await forno.waitForTransactionReceipt({ hash: tx });
   if (rc.status !== "success") throw new Error("uniswap swap reverted");
-  const out = (await balanceOf(buy)) - before;
+  const out = receivedFromReceipt(rc.logs, buy);
   return { venue: "uniswap", sell, buy, amountIn: amountIn.toString(), amountOut: out.toString(), tx };
 }
 
 async function leg(sell: Address, buy: Address, amountIn: bigint, minOut: bigint): Promise<Leg> {
+  if (amountIn <= 0n) throw new Error("nothing to convert");
+  let l: Leg;
   try {
-    return await textileLeg(sell, buy, amountIn);
+    l = await textileLeg(sell, buy, amountIn);
   } catch (e) {
-    const l = await uniswapLeg(sell, buy, amountIn, minOut);
-    return { ...l, textileError: String(e).slice(0, 200) };
+    l = { ...(await uniswapLeg(sell, buy, amountIn, minOut)), textileError: String(e).slice(0, 200) };
   }
+  if (BigInt(l.amountOut) <= 0n) throw new Error(`leg ${l.venue} returned 0 (tx ${l.tx})`);
+  return l;
 }
 
 const minOut = (amountIn: bigint, from: Address, to: Address, r: Rates) => {
