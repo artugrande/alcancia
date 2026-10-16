@@ -103,6 +103,7 @@ const es = {
   back: "Volver",
   // sync card
   syncHead: (b: number) => `🤖 agente · bloque #${b} · ingresos detectados con SQD vía buy (gratis)`,
+  syncHeadRpc: (b: number) => `🤖 agente · bloque #${b} · SQD saturado → ingresos leídos del RPC público`,
   syncPaid: (a: string) => `📡 estado leído con Chainstack vía buy · pagó ${a} por x402`,
   syncForno: "📡 estado leído con Forno (fallback)",
   receipt: "recibo",
@@ -211,6 +212,7 @@ const en: Dict = {
   approved: "✅ Correct! The agent approved your withdrawal onchain. You can take it out from the card.",
   back: "Back",
   syncHead: (b) => `🤖 agent · block #${b} · income detected with SQD via buy (free)`,
+  syncHeadRpc: (b) => `🤖 agent · block #${b} · SQD busy → income read from the public RPC`,
   syncPaid: (a) => `📡 state read with Chainstack via buy · paid ${a} over x402`,
   syncForno: "📡 state read with Forno (fallback)",
   receipt: "receipt",

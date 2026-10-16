@@ -53,31 +53,48 @@ type SqdBlock = { header: { number: number }; logs?: SqdLog[] };
 const CONFIRMATIONS = 3;
 
 export async function sqdSafeHead(): Promise<number> {
-  const r = await fetch(`${SQD}/head`, { cache: "no-store" });
-  return (await r.json()).number - CONFIRMATIONS;
+  try {
+    const r = await fetch(`${SQD}/head`, { cache: "no-store" });
+    if (!r.ok) throw new Error(`SQD head ${r.status}`);
+    return (await r.json()).number - CONFIRMATIONS;
+  } catch {
+    return Number(await forno.getBlockNumber()) - CONFIRMATIONS;
+  }
 }
 
-async function sqdLogs(filter: Record<string, unknown>, fromBlock: number, toBlock: number) {
-  const out: (SqdLog & { block: number })[] = [];
-  let from = fromBlock;
-  while (from <= toBlock) {
+type LogFilter = { address?: string[]; topic0?: string[]; topic2?: string[] };
+
+/** POST to SQD with retries on 429/5xx (honors Retry-After). */
+async function sqdPost(body: unknown, tries = 3): Promise<Response> {
+  for (let i = 0; ; i++) {
     const r = await fetch(`${SQD}/stream`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        type: "evm",
-        fromBlock: from,
-        toBlock,
-        fields: {
-          block: { number: true },
-          log: { address: true, topics: true, data: true, transactionHash: true, logIndex: true },
-        },
-        logs: [filter],
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
     });
+    if (r.ok || r.status === 204 || i >= tries - 1 || (r.status < 500 && r.status !== 429)) return r;
+    const wait = Number(r.headers.get("retry-after")) * 1000 || 1500 * (i + 1);
+    await new Promise((res) => setTimeout(res, Math.min(wait, 5000)));
+  }
+}
+
+async function sqdLogsOnly(filter: LogFilter, fromBlock: number, toBlock: number) {
+  const out: (SqdLog & { block: number })[] = [];
+  let from = fromBlock;
+  while (from <= toBlock) {
+    const r = await sqdPost({
+      type: "evm",
+      fromBlock: from,
+      toBlock,
+      fields: {
+        block: { number: true },
+        log: { address: true, topics: true, data: true, transactionHash: true, logIndex: true },
+      },
+      logs: [filter],
+    });
     if (r.status === 204) break;
-    if (!r.ok) throw new Error(`SQD ${r.status}: ${await r.text()}`);
+    if (!r.ok) throw new Error(`SQD ${r.status}: ${(await r.text()).slice(0, 200)}`);
     const lines = (await r.text()).split("\n").filter(Boolean);
     if (!lines.length) break;
     let last = from;
@@ -89,6 +106,39 @@ async function sqdLogs(filter: Record<string, unknown>, fromBlock: number, toBlo
     from = last + 1;
   }
   return out;
+}
+
+/** Fallback when SQD is overloaded or unreachable: the same logs from the public RPC, in chunks. */
+async function rpcLogs(filter: LogFilter, fromBlock: number, toBlock: number) {
+  const out: (SqdLog & { block: number })[] = [];
+  const STEP = 5000;
+  for (let f = fromBlock; f <= toBlock; f += STEP) {
+    const t = Math.min(toBlock, f + STEP - 1);
+    const logs = (await forno.request({
+      method: "eth_getLogs",
+      params: [{
+        fromBlock: `0x${f.toString(16)}`,
+        toBlock: `0x${t.toString(16)}`,
+        address: filter.address as Address[] | undefined,
+        topics: [filter.topic0?.[0] ?? null, null, filter.topic2?.[0] ?? null] as never,
+      }],
+    })) as { address: string; topics: string[]; data: string; transactionHash: string; logIndex: string; blockNumber: string }[];
+    for (const l of logs) out.push({ address: l.address, topics: l.topics, data: l.data, transactionHash: l.transactionHash, logIndex: Number(l.logIndex), block: Number(l.blockNumber) });
+  }
+  return out;
+}
+
+export let lastLogSource: "sqd" | "rpc" = "sqd";
+
+async function sqdLogs(filter: LogFilter, fromBlock: number, toBlock: number) {
+  try {
+    const logs = await sqdLogsOnly(filter, fromBlock, toBlock);
+    lastLogSource = "sqd";
+    return logs;
+  } catch {
+    lastLogSource = "rpc";
+    return rpcLogs(filter, fromBlock, toBlock);
+  }
 }
 
 const pad = (a: string) => "0x" + a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
@@ -268,7 +318,7 @@ export async function runSweep(onlyUser?: Address) {
     }
     logs.push(log);
   }
-  return { head, users: users.length, rates, receipt, logs };
+  return { head, users: users.length, rates, receipt, logs, logSource: lastLogSource };
 }
 
 const routerAbi = [

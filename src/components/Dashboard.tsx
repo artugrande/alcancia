@@ -418,6 +418,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
 
 type SyncResult = {
   head: number;
+  logSource?: "sqd" | "rpc";
   receipt: { paid: boolean; via: string; tx?: string; amount?: string; error?: string };
   logs: {
     user: string;
@@ -436,7 +437,7 @@ function SyncCard({ r }: { r: SyncResult }) {
   const mine = r.logs[0];
   return (
     <div className="rounded-3xl bg-slate-900 p-4 font-mono text-xs leading-relaxed text-slate-100">
-      <p>{t.syncHead(r.head)}</p>
+      <p>{r.logSource === "rpc" ? t.syncHeadRpc(r.head) : t.syncHead(r.head)}</p>
       <p>
         {r.receipt.via === "chainstack" ? t.syncPaid(r.receipt.amount ?? "") : t.syncForno}
         {r.receipt.tx && <> · <a className="underline" href={explorer(r.receipt.tx)} target="_blank">{t.receipt}</a></>}
