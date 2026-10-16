@@ -10,9 +10,9 @@ import { fmt } from "@/lib/plan";
 import { useRates } from "./ToolCards";
 import { useI18n } from "@/lib/i18n";
 
-const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100";
-const btn = "rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-700 disabled:opacity-50";
-const ghost = "rounded-full border border-emerald-200 px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50";
+const card = "rounded-3xl bg-white p-4 shadow-md ring-1 ring-brand-100";
+const btn = "rounded-full bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-brand-700 disabled:opacity-50";
+const ghost = "rounded-full border border-brand-200 px-4 py-2 text-sm font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-50";
 const erc20TransferAbi = [
   { type: "function", name: "transfer", stateMutability: "nonpayable", inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }] },
 ] as const;
@@ -134,7 +134,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
 
   return (
     <div className="space-y-4">
-      <div className={`${card} bg-gradient-to-br from-emerald-500 to-teal-600 text-white ring-0`}>
+      <div className={`${card} bg-gradient-to-br from-brand-500 to-brand-800 text-white ring-0`}>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <p className="text-sm opacity-80">{t.totalSaved}</p>
@@ -148,7 +148,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
           </div>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          {ramp && <a href={ramp} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-emerald-700">{t.loadWith(LOCALS[home].symbol)}</a>}
+          {ramp && <a href={ramp} target="_blank" className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-brand-700">{t.loadWith(LOCALS[home].symbol)}</a>}
           <button onClick={runSync} disabled={sync.loading} className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold">
             {sync.loading ? t.syncing : t.sync}
           </button>
@@ -156,7 +156,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
         </div>
       </div>
 
-      {address && <p className="rounded-2xl bg-white/70 p-3 text-xs text-gray-600 ring-1 ring-emerald-100">{t.walletInfo(`${address.slice(0, 6)}…${address.slice(-4)}`)}</p>}
+      {address && <p className="rounded-2xl bg-white/70 p-3 text-xs text-gray-600 ring-1 ring-brand-100">{t.walletInfo(`${address.slice(0, 6)}…${address.slice(-4)}`)}</p>}
       {sync.result && <SyncCard r={sync.result} />}
       {sync.error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{sync.error}</p>}
 
@@ -211,19 +211,19 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
   }
 
   return (
-    <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-emerald-100">
+    <div className="rounded-3xl bg-white p-4 shadow-md ring-1 ring-brand-100">
       <div className="flex items-center justify-between">
         <p className="text-lg font-bold">{emoji} {rest.join(" ")}</p>
         <span className="text-xs text-gray-400">{(a.bps / 100).toFixed(1)}% {t.ofIncome}</span>
       </div>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-emerald-100">
-        <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-400 transition-all" style={{ width: `${pct}%` }} />
+      <div className="mt-3 h-3 overflow-hidden rounded-full bg-brand-100">
+        <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-amber-400 transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-2 flex justify-between text-sm">
         <span><b>{fmt(bal, sym)}</b> {t.of} {fmt(tgt, sym)}</span>
         <span className="text-gray-500">{pct.toFixed(0)}%</span>
       </div>
-      {cur !== home && rates && <p className="text-xs text-emerald-700">{LOCALS[cur].flag} ≈ {fmt(convert(bal, cur, home, rates), home)} · {t.approxSaving}</p>}
+      {cur !== home && rates && <p className="text-xs text-brand-700">{LOCALS[cur].flag} ≈ {fmt(convert(bal, cur, home, rates), home)} · {t.approxSaving}</p>}
       <p className="mt-1 text-xs text-gray-400">
         {t.until} {new Date(Number(a.deadline) * 1000).toLocaleDateString(lang === "en" ? "en-US" : "es-AR", { month: "long", year: "numeric" })} ·{" "}
         <a className="underline" href={explorer(a.address)} target="_blank">{a.address.slice(0, 8)}…</a>
@@ -247,17 +247,17 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
         )}
       </div>
       {contrib !== null && (
-        <div className="mt-3 rounded-2xl bg-emerald-50 p-3 text-sm">
+        <div className="mt-3 rounded-2xl bg-brand-50 p-3 text-sm">
           <div className="mb-2 flex flex-wrap gap-1">
             {sources.map((c) => (
-              <button key={c} onClick={() => setSrc(c)} className={`rounded-full px-2.5 py-1 text-xs ${src === c ? "bg-emerald-600 text-white" : "bg-white text-emerald-800"}`}>
+              <button key={c} onClick={() => setSrc(c)} className={`rounded-full px-2.5 py-1 text-xs ${src === c ? "bg-brand-600 text-white" : "bg-white text-brand-800"}`}>
                 {LOCALS[c].flag} {LOCALS[c].symbol}
               </button>
             ))}
           </div>
           <p className="text-xs text-gray-600">{src === cur ? t.contributeHelp(fmt(myBal, sym)) : t.contributeFx(fmt(myBal, LOCALS[src].symbol), sym)}</p>
           {src !== cur && rates && Number(contrib) > 0 && (
-            <p className="mt-1 text-xs text-emerald-800">≈ {fmt(convert(Number(contrib), src, cur, rates) * 0.99, sym)}</p>
+            <p className="mt-1 text-xs text-brand-800">≈ {fmt(convert(Number(contrib), src, cur, rates) * 0.99, sym)}</p>
           )}
           {src !== cur && rates && Number(contrib) > 0 && convert(Number(contrib), src, "USD", rates) < 1.5 && (
             <p className="mt-1 text-xs text-amber-700">{t.fxMin(fmt(convert(1.5, "USD", src, rates), LOCALS[src].symbol))}</p>
@@ -265,7 +265,7 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
           <div className="mt-2 flex gap-2">
             <input
               type="number"
-              className="w-full rounded-xl border border-emerald-200 bg-white px-3 py-2"
+              className="w-full rounded-xl border border-brand-200 bg-white px-3 py-2"
               placeholder="0"
               value={contrib}
               onChange={(e) => setContrib(e.target.value)}
@@ -309,14 +309,14 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
             </button>
           </div>
           {Number(contrib) > myBal && address && rampUrl(address, src) && (
-            <a href={rampUrl(address, src)!} target="_blank" className="mt-2 block text-xs font-semibold text-emerald-700 underline">{t.loadWith(LOCALS[src].symbol)}</a>
+            <a href={rampUrl(address, src)!} target="_blank" className="mt-2 block text-xs font-semibold text-brand-700 underline">{t.loadWith(LOCALS[src].symbol)}</a>
           )}
-          {contribMsg && <p className={`mt-2 text-xs ${contribMsg === t.converting ? "text-emerald-700" : "text-red-600"}`}>{contribMsg}</p>}
+          {contribMsg && <p className={`mt-2 text-xs ${contribMsg === t.converting ? "text-brand-700" : "text-red-600"}`}>{contribMsg}</p>}
         </div>
       )}
-      {fxResult && <p className="mt-2 text-xs text-emerald-700">{fxResult} · Textile</p>}
+      {fxResult && <p className="mt-2 text-xs text-brand-700">{fxResult} · Textile</p>}
       {withdrew !== null && offrampUrl(cur, withdrew) && (
-        <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800">
+        <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-brand-50 p-3 text-sm font-semibold text-brand-800">
           {t.offramp}
         </a>
       )}
@@ -394,7 +394,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
         )}
         {stage === "riddle" && r && (
           <>
-            <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm">{r.reply}</p>
+            <p className="mt-4 rounded-2xl bg-brand-50 p-3 text-sm">{r.reply}</p>
             <p className="mt-4 font-semibold">🧩 {r.question}</p>
             <input className="mt-2 w-full rounded-xl border px-3 py-2" value={answer} onChange={(e) => setAnswer(e.target.value)} placeholder={t.answerPh} />
             <p className="mt-1 text-xs text-gray-400">{t.hint} {r.hint}</p>
@@ -406,7 +406,7 @@ function Ritual({ a, onClose }: { a: Info; onClose: () => void }) {
         )}
         {stage === "approved" && (
           <>
-            <p className="mt-4 rounded-2xl bg-emerald-50 p-3 text-sm text-emerald-800">{t.approved}</p>
+            <p className="mt-4 rounded-2xl bg-brand-50 p-3 text-sm text-brand-800">{t.approved}</p>
             <button className={`${btn} mt-4`} onClick={onClose}>{t.back}</button>
           </>
         )}

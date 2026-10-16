@@ -1,4 +1,6 @@
-# 💰 Alcancía
+<p align="center"><img src="public/logo.png" alt="Alcancía" width="220" /></p>
+
+# Alcancía
 
 **A savings agent for Latin America, in your own currency, onchain on Celo.**
 
@@ -7,6 +9,8 @@ You tell the agent your goals for the year, your income and your fixed costs. It
 > 🇪🇸 Un agente de ahorro para Latinoamérica: armás tu plan conversando, cada meta es una alcancía onchain (un contrato tuyo), el agente reparte cada ingreso solo, ahorra en la moneda en la que vas a gastar (vía Textile) y te frena los impulsos antes de romper el chanchito.
 
 **Live:** https://alcancia-celo.vercel.app · ES / EN (`?lang=en`) · ⚡ one-click demo
+
+**Visual explainer (problem, tracks, architecture):** https://alcancia-celo.vercel.app/como-funciona
 
 Built for **Agents on Open Rails** (Celo) · Track 1: Stable Agents LatAm (Ripio × Celo Core Co.)
 

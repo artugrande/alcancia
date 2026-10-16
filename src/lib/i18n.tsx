@@ -5,6 +5,8 @@ export type Lang = "es" | "en";
 
 const es = {
   connect: "Conectar",
+  howItWorks: "Cómo funciona",
+  howItWorksLong: "¿Qué es y cómo funciona? →",
   heroTitle1: "Ahorrá para lo que querés,",
   heroTitle2: "en tu moneda.",
   heroSub: "Un agente que arma tu plan, reparte cada ingreso en alcancías onchain y te frena los impulsos. En tu moneda local, sin pasar por el dólar.",
@@ -12,7 +14,7 @@ const es = {
   heroFoot: "stablecoins locales de Ripio · FX con Textile · Celo",
   loadingAlcancias: "Buscando tus alcancías…",
   footerAgent: "Agente",
-  hello: "¡Hola! 💰 Soy Alcancía. Vamos a armar tu plan de ahorro en tu moneda, onchain. Para arrancar: ¿cuáles son tus metas este año?",
+  hello: "¡Hola! 🐷 Soy Alcancía. Vamos a armar tu plan de ahorro en tu moneda, onchain. Para arrancar: ¿cuáles son tus metas este año?",
   placeholder: "Ej: viajar a Florianópolis en enero, un Ironman, cambiar la notebook",
   demoBtn: "⚡ Demo rápida",
   demoMsg: "Quiero viajar a Florianópolis en marzo, hacer un Ironman en noviembre del año que viene y cambiar la notebook en junio",
@@ -112,6 +114,8 @@ type Dict = typeof es;
 
 const en: Dict = {
   connect: "Connect",
+  howItWorks: "How it works",
+  howItWorksLong: "What is it and how does it work? →",
   heroTitle1: "Save for what you want,",
   heroTitle2: "in your own currency.",
   heroSub: "An agent that builds your plan, splits every paycheck into onchain piggy banks and stops your impulses. In your local currency, without going through the dollar.",
@@ -119,7 +123,7 @@ const en: Dict = {
   heroFoot: "Ripio local stablecoins · FX with Textile · Celo",
   loadingAlcancias: "Looking for your piggy banks…",
   footerAgent: "Agent",
-  hello: "Hi! 💰 I'm Alcancía. Let's build your savings plan in your own currency, onchain. To start: what are your goals this year?",
+  hello: "Hi! 🐷 I'm Alcancía. Let's build your savings plan in your own currency, onchain. To start: what are your goals this year?",
   placeholder: "e.g. a trip to Florianópolis in January, an Ironman, a new laptop",
   demoBtn: "⚡ Quick demo",
   demoMsg: "I want to travel to Florianópolis in March, do an Ironman next November and get a new laptop in June",
@@ -238,9 +242,9 @@ export const useI18n = () => useContext(Ctx);
 export function LangToggle() {
   const { lang, setLang } = useI18n();
   return (
-    <div className="flex rounded-full bg-white p-0.5 text-xs font-semibold shadow-sm ring-1 ring-emerald-100">
+    <div className="flex rounded-full bg-white p-0.5 text-xs font-semibold shadow-sm ring-1 ring-brand-100">
       {(["es", "en"] as const).map((l) => (
-        <button key={l} onClick={() => setLang(l)} className={`rounded-full px-2.5 py-1 ${lang === l ? "bg-emerald-600 text-white" : "text-emerald-800"}`}>
+        <button key={l} onClick={() => setLang(l)} className={`rounded-full px-2.5 py-1 ${lang === l ? "bg-brand-600 text-white" : "text-brand-800"}`}>
           {l.toUpperCase()}
         </button>
       ))}

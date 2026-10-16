@@ -36,7 +36,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 function Rainbow({ children }: { children: React.ReactNode }) {
   const { lang } = useI18n();
   return (
-    <RainbowKitProvider key={lang} theme={lightTheme({ accentColor: "#059669", borderRadius: "large" })} locale={lang === "en" ? "en-US" : "es-419"}>
+    <RainbowKitProvider key={lang} theme={lightTheme({ accentColor: "#5f50fb", borderRadius: "large" })} locale={lang === "en" ? "en-US" : "es-419"}>
       {children}
     </RainbowKitProvider>
   );

@@ -4,6 +4,21 @@
   --font-sans: var(--font-geist-sans);
 }
 
+/* Brand: the violet of the Alcancía piggy (#5F50FB) + its gold coin (amber). */
+@theme {
+  --color-brand-50: #f3f1ff;
+  --color-brand-100: #e9e5ff;
+  --color-brand-200: #d4ccff;
+  --color-brand-300: #b4a6fe;
+  --color-brand-400: #8f7dfc;
+  --color-brand-500: #6f5efb;
+  --color-brand-600: #5f50fb;
+  --color-brand-700: #4c3de0;
+  --color-brand-800: #3e33b5;
+  --color-brand-900: #2f2a86;
+  --color-brand-950: #1d1a52;
+}
+
 body {
-  background: #ecfdf5;
+  background: #f3f1ff;
 }
