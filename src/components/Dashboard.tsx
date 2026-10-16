@@ -127,6 +127,7 @@ export function Dashboard({ onAdd }: { onAdd: () => void }) {
       setSync({ loading: false, result: j });
       refetch();
       wallet.refetch();
+      setTimeout(() => { refetch(); wallet.refetch(); }, 4000);
     } catch (e) {
       setSync({ loading: false, error: (e as Error).message });
     }
@@ -292,12 +293,14 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
                     const res = await fetch("/api/contribute", { method: "POST", body: JSON.stringify({ tx: h, alcancia: a.address }) }).then((x) => x.json());
                     if (res.error && !res.depositTx) throw new Error(res.error);
                     if (res.refundTx) throw new Error(t.refundedMsg);
-                    setFxResult(res.amountOut ? `💱 ${fmt(Number(formatUnits(BigInt(res.amountIn), 18)), LOCALS[src].symbol)} → ${fmt(Number(formatUnits(BigInt(res.amountOut), 18)), sym)}` : "");
+                    const venues = [...new Set(((res.legs ?? []) as { venue: string }[]).map((l) => (l.venue === "textile" ? "Textile" : "Uniswap")))].join(" + ");
+                    setFxResult(res.amountOut ? `💱 ${fmt(Number(formatUnits(BigInt(res.amountIn), 18)), LOCALS[src].symbol)} → ${fmt(Number(formatUnits(BigInt(res.amountOut), 18)), sym)}${venues ? ` · ${venues}` : ""}` : "");
                   }
                   confetti({ particleCount: 80, spread: 60, origin: { y: 0.5 } });
                   setContrib(null);
                   walletBal.refetch();
                   onChange();
+                  setTimeout(() => { walletBal.refetch(); onChange(); }, 4000);
                 } catch (e) {
                   setContribMsg((e as Error).message.split("\n")[0]);
                 } finally {
@@ -314,7 +317,7 @@ function AlcanciaCard({ a, home, rates, onRitual, onChange }: { a: Info; home: L
           {contribMsg && <p className={`mt-2 text-xs ${contribMsg === t.converting ? "text-brand-700" : "text-red-600"}`}>{contribMsg}</p>}
         </div>
       )}
-      {fxResult && <p className="mt-2 text-xs text-brand-700">{fxResult} · Textile</p>}
+      {fxResult && <p className="mt-2 text-xs text-brand-700">{fxResult}</p>}
       {withdrew !== null && offrampUrl(cur, withdrew) && (
         <a href={offrampUrl(cur, withdrew)!} target="_blank" className="mt-3 block rounded-2xl bg-brand-50 p-3 text-sm font-semibold text-brand-800">
           {t.offramp}
@@ -458,7 +461,7 @@ function SyncCard({ r }: { r: SyncResult }) {
           ))}
           {f.depositTx && <> · <a className="underline" href={explorer(f.depositTx)} target="_blank">{t.deposit}</a></>}
           {f.refundTx && <> · <a className="underline" href={explorer(f.refundTx)} target="_blank">{t.refunded}</a></>}
-          {f.error && <span className="text-amber-300"> · {f.error}</span>}
+          {f.error && <span className="text-amber-300" title={f.error}> · {f.refundTx ? t.fxRefunded : t.fxFailed}</span>}
         </p>
       ))}
     </div>

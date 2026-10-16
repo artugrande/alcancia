@@ -111,6 +111,8 @@ const es = {
   swept: (a: string) => `✅ ingreso de ${a} repartido`,
   deposit: "depósito",
   refunded: "devuelto a tu wallet",
+  fxRefunded: "no se pudo convertir ahora: la plata volvió a tu wallet",
+  fxFailed: "no se pudo convertir ni devolver: quedó en la wallet del agente, avisanos y te la devolvemos",
 };
 
 type Dict = typeof es;
@@ -220,6 +222,8 @@ const en: Dict = {
   swept: (a) => `✅ income of ${a} split`,
   deposit: "deposit",
   refunded: "returned to your wallet",
+  fxRefunded: "couldn't convert right now: the money went back to your wallet",
+  fxFailed: "couldn't convert or refund: it's held in the agent wallet, let us know and we'll return it",
 };
 
 const DICTS: Record<Lang, Dict> = { es, en };
