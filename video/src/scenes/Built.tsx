@@ -8,7 +8,7 @@ const PHASE_B = 7.5 * 30;
 const LAYERS = [
   { icon: "🙋", title: "You", sub: "Your own wallet — you sign, you own", tone: 0 },
   { icon: "💬", title: "The app", sub: "Next.js · AI SDK · Claude via Vercel AI Gateway", tone: 1 },
-  { icon: "🤖", title: "The agent", sub: "Own wallet · ERC-8004 #9911 · cycle every 15 min", tone: 2 },
+  { icon: "🤖", title: "The agent", sub: "Own wallet · ERC-8004 #9911 · cycle every hour", tone: 2 },
   { icon: "⛓️", title: "Celo mainnet", sub: "AlcanciaFactory + one Alcancía per goal", tone: 3 },
 ];
 
@@ -140,7 +140,7 @@ const SideChip: React.FC<{ s: (typeof SIDE)[number]; idx: number }> = ({ s, idx 
 };
 
 const CYCLE = [
-  { icon: "⏰", title: "Wake up", sub: "Every 15 minutes" },
+  { icon: "⏰", title: "Wake up", sub: "Every hour, or on Sync" },
   { icon: "🔎", title: "Detect income", sub: "SQD indexer — free, via buy" },
   { icon: "🐷", title: "Split & deposit", sub: "Each goal's % → its alcancía. Trips convert via Textile FX" },
   { icon: "🧾", title: "Pay its own infra", sub: "Chainstack RPC · US$0.01 per cycle via x402" },
@@ -200,7 +200,7 @@ const CyclePhase: React.FC = () => {
   const tag = useSpringIn(80);
   return (
     <AbsoluteFill style={{ alignItems: "center", paddingTop: 130, flexDirection: "column" }}>
-      <SceneTitle kicker="The agent cycle" title="Runs on its own, every 15 min" />
+      <SceneTitle kicker="The agent cycle" title="Runs on its own, every hour" />
       <div style={{ display: "flex", gap: 20, marginTop: 70 }}>
         {CYCLE.map((_, i) => (
           <CycleStep key={i} i={i} />

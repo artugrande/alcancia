@@ -50,7 +50,7 @@ Goals in a currency without a corridor are saved in your income currency and re-
 Next.js on Vercel ─────────────────────────────────────────────────────────
   UI: chat (useChat) + generative components · RainbowKit/wagmi (MiniPay ok)
   /api/chat        streamText via Vercel AI Gateway (Claude)
-  /api/sweep       agent cycle · Vercel Cron every 15 min + "Sync" button
+  /api/sweep       agent cycle · Vercel Cron every hour + "Sync" button
   /api/contribute  cross-currency top-ups
   /api/unlock      riddle (sealed answer) → agentApprove()
   /api/rates       Textile tickers + RFQ previews (+ reference for PEN/CLP)

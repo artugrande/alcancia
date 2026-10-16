@@ -119,7 +119,7 @@ const ES: Copy = {
   layers: [
     { title: "👤 Vos", color: "bg-white", items: ["Tu wallet (MetaMask, Rabby, Valora, MiniPay)", "Firmás crear, retirar y aportar"] },
     { title: "💬 La app", color: "bg-brand-50", items: ["Next.js en Vercel", "Chat con componentes (AI SDK)", "Claude vía Vercel AI Gateway", "Español e inglés"] },
-    { title: "🤖 El agente", color: "bg-brand-100", items: ["Wallet propia + identidad ERC-8004", "Ciclo cada 15 min (Vercel Cron)", "Reparto, FX, aprobación de retiros", "Sin base de datos: el estado está onchain"] },
+    { title: "🤖 El agente", color: "bg-brand-100", items: ["Wallet propia + identidad ERC-8004", "Ciclo cada hora (Vercel Cron) + botón Sincronizar", "Reparto, FX, aprobación de retiros", "Sin base de datos: el estado está onchain"] },
     { title: "⛓️ Celo mainnet", color: "bg-brand-200", items: ["AlcanciaFactory: usuarios, moneda, % por meta", "Alcancia: un contrato por meta, dueño = vos", "wFiat de Ripio · reactor de Textile"] },
   ],
   cycleTitle: "Un ciclo del agente, paso a paso",
@@ -230,7 +230,7 @@ const EN: Copy = {
   layers: [
     { title: "👤 You", color: "bg-white", items: ["Your wallet (MetaMask, Rabby, Valora, MiniPay)", "You sign create, withdraw and top up"] },
     { title: "💬 The app", color: "bg-brand-50", items: ["Next.js on Vercel", "Chat with components (AI SDK)", "Claude via Vercel AI Gateway", "Spanish and English"] },
-    { title: "🤖 The agent", color: "bg-brand-100", items: ["Own wallet + ERC-8004 identity", "Cycle every 15 min (Vercel Cron)", "Split, FX, withdrawal approvals", "No database: state is onchain"] },
+    { title: "🤖 The agent", color: "bg-brand-100", items: ["Own wallet + ERC-8004 identity", "Cycle every hour (Vercel Cron) + Sync button", "Split, FX, withdrawal approvals", "No database: state is onchain"] },
     { title: "⛓️ Celo mainnet", color: "bg-brand-200", items: ["AlcanciaFactory: users, currency, % per goal", "Alcancia: one contract per goal, owner = you", "Ripio wFiat · Textile reactor"] },
   ],
   cycleTitle: "One agent cycle, step by step",

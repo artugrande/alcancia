@@ -19,7 +19,7 @@ ejemplo de referencia del Track 1 (Stable Agents: LatAm) de Agents on Open Rails
 > - **Detección de ingresos con SQD sobre la punta de la cadena** (−3 bloques), no sobre bloques
 >   finalizados: la finalidad de Celo en L1 tarda ~30 min.
 > - **Aportes voluntarios**, también desde otra moneda (el agente convierte vía Textile).
-> - **ES/EN** y **demo de un clic**. Cron cada 15 min (Vercel Pro).
+> - **ES/EN** y **demo de un clic**. Cron cada hora (Vercel Pro).
 > - Attribution: `celo_cbcc681c15b7` (asignado) + `celo_595aac690f07` (derivado del repo).
 > - Direcciones actuales en el README.
 
