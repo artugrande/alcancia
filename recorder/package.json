@@ -1,0 +1,12 @@
+{
+  "name": "alcancia-recorder",
+  "private": true,
+  "type": "module",
+  "scripts": { "record": "tsx record.ts" },
+  "dependencies": {
+    "playwright-core": "1.64.1",
+    "viem": "2.57.7",
+    "tsx": "4.21.0",
+    "dotenv": "17.2.3"
+  }
+}

@@ -13,7 +13,7 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
   homeRef.current = home;
   const [demo, setDemo] = useState(false);
   const hello: UIMessage[] = [{ id: "hello", role: "assistant", parts: [{ type: "text", text: t.hello }] }];
-  const { messages, sendMessage, addToolOutput, status } = useChat({
+  const { messages, sendMessage, addToolOutput, status, error, regenerate } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat", body: () => ({ home: homeRef.current, lang }) }),
     sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
     messages: hello,
@@ -98,6 +98,12 @@ export function Chat({ onCreated, home }: { onCreated: () => void; home: Local }
           </div>
         ))}
         {status === "submitted" && <Skeleton label={t.thinking} />}
+        {error && (
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-red-50 px-4 py-3 text-sm text-red-700">
+            <span>{t.chatError}</span>
+            <button className="font-semibold underline" onClick={() => regenerate()}>{t.retry}</button>
+          </div>
+        )}
         <div ref={end} />
       </div>
       {messages.length === 1 && !busy && (

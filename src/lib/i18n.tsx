@@ -19,6 +19,8 @@ const es = {
   demoBtn: "⚡ Demo rápida",
   demoMsg: "Quiero viajar a Florianópolis en marzo, hacer un Ironman en noviembre del año que viene y cambiar la notebook en junio",
   thinking: "Pensando…",
+  chatError: "Se me cortó la conexión con el modelo. ¿Probamos de nuevo?",
+  retry: "Reintentar",
   buildingGoals: "Armando tus metas…",
   buildingBudget: "Preparando tu presupuesto…",
   buildingPlan: "Calculando tu plan…",
@@ -128,6 +130,8 @@ const en: Dict = {
   demoBtn: "⚡ Quick demo",
   demoMsg: "I want to travel to Florianópolis in March, do an Ironman next November and get a new laptop in June",
   thinking: "Thinking…",
+  chatError: "I lost my connection to the model. Try again?",
+  retry: "Retry",
   buildingGoals: "Setting up your goals…",
   buildingBudget: "Preparing your budget…",
   buildingPlan: "Crunching your plan…",
@@ -227,10 +231,17 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
       const saved = localStorage.getItem("alcancia:lang") as Lang | null;
       const fromUrl = new URLSearchParams(location.search).get("lang") as Lang | null;
       const l = fromUrl === "en" || fromUrl === "es" ? fromUrl : saved;
-      if (l === "en" || l === "es") setLangState(l);
+      if (l === "en" || l === "es") {
+        document.documentElement.lang = l;
+        setLangState(l);
+      }
     } catch {}
   }, []);
+  useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
   const setLang = (l: Lang) => {
+    document.documentElement.lang = l;
     setLangState(l);
     try { localStorage.setItem("alcancia:lang", l); } catch {}
   };

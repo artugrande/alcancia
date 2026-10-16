@@ -87,5 +87,8 @@ export function buildPlan(goals: GoalDraft[], budget: Budget, rates: Rates, over
   return { rows, free, freePct, totalBps: total, scaled, fixed };
 }
 
+const numberLocale = () =>
+  typeof document !== "undefined" && document.documentElement.lang === "en" ? "en-US" : "es-AR";
+
 export const fmt = (n: number, c: string = "ARS") =>
-  new Intl.NumberFormat("es-AR", { maximumFractionDigits: n < 100 ? 2 : 0 }).format(n) + " " + c.replace(/^w/, "");
+  new Intl.NumberFormat(numberLocale(), { maximumFractionDigits: n < 100 ? 2 : 0 }).format(n) + " " + c.replace(/^w/, "");
