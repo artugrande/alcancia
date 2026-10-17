@@ -48,3 +48,5 @@ contracts/lib
 *.pdf
 !.env.example
 *.mp4
+!public/demo.mp4
+submission/
